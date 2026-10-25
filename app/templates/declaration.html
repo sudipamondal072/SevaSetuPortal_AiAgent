@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="steps"><b>Step 6 of 6:</b> Preview &amp; Declaration</div>
+<h2>Please check your application before submitting</h2>
+<table class="tbl" style="max-width:640px">
+  <tr><th>Full Name</th><td>{{ data.get('applicant_name','') }}</td></tr>
+  <tr><th>Date of Birth</th><td>{{ data.get('dob','') }}</td></tr>
+  <tr><th>Gender</th><td>{{ data.get('gender','') }}</td></tr>
+  <tr><th>Marital Status</th><td>{{ data.get('marital_status','') }}</td></tr>
+  {% if data.get('marital_status') == 'Widowed' %}
+  <tr><th>Late Husband's Name</th><td>{{ data.get('husband_name','') or '-' }}</td></tr>
+  {% endif %}
+  <tr><th>Village / Town</th><td>{{ data.get('village','') }}</td></tr>
+  <tr><th>Block</th><td>{{ data.get('block','') }}</td></tr>
+  <tr><th>Bank Account</th><td>{{ data.get('bank_account','')|mask_bank_account }}</td></tr>
+  <tr><th>IFSC</th><td>{{ data.get('ifsc','') }}</td></tr>
+  <tr><th>Age Proof Document</th><td>{{ doc_name or 'Not uploaded' }}</td></tr>
+</table>
+{% if not editing %}
+<p class="note">Need to change something? Use the one-time editing option below
+before submitting.</p>
+{% endif %}
+{% if not editing and not edit_used %}
+<form method="post" action="{{ url_for('begin_application_edit') }}">
+  <button class="btn" type="submit">Edit Application</button>
+</form>
+{% elif not editing and edit_used %}
+<p class="note">Your one-time editing opportunity has been used. Further edits are
+not available.</p>
+{% endif %}
+{% if upload_error %}
+<div class="flash">{{ upload_error }}</div>
+{% endif %}
+{% if errors %}
+<div class="flash">This application cannot be submitted yet:
+  <ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
+</div>
+{% if not doc_name %}
+<h3>Upload your proof document</h3>
+<p class="note">Your proof document is missing. Please upload it now to continue.
+Accepted formats: PDF, JPG, JPEG, or PNG; maximum size 5 MB.</p>
+<form method="post" action="{{ url_for('upload') }}" enctype="multipart/form-data">
+  <label for="document">Choose age-proof file</label>
+  <input id="document" type="file" name="document"
+         accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+         required>
+  <p><button class="btn" type="submit">Upload &amp; Continue</button></p>
+</form>
+{% endif %}
+{% endif %}
+{% if editing and errors %}
+<p class="note">Correct the highlighted application information, then return here
+to save your one-time edit.</p>
+<p><a href="{{ url_for('form_step', step=1) }}">Personal details</a> &middot;
+<a href="{{ url_for('form_step', step=2) }}">Address</a> &middot;
+<a href="{{ url_for('form_step', step=3) }}">Bank details</a></p>
+{% endif %}
+{% if not errors and editing %}
+<form method="post">
+  <input type="hidden" name="action" value="save_edit">
+  <p><button class="btn" type="submit">Save Corrections</button></p>
+</form>
+{% elif not errors %}
+<h3>Declaration</h3>
+<p>I hereby declare that the information furnished above is true to the best of my
+knowledge and belief. I understand that furnishing false information is punishable
+under applicable law and will result in cancellation of pension.</p>
+<form method="post" data-processing-message="Submitting your application securely. Please wait.">
+  <p><input type="checkbox" required> I agree to the above declaration.</p>
+  <p><button class="btn" type="submit">Submit Application</button></p>
+  <p class="processing" hidden role="status" aria-live="polite">
+    <span class="spinner" aria-hidden="true"></span>
+    <span class="processing-text"></span>
+  </p>
+</form>
+{% endif %}
+{% endblock %}

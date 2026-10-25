@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="steps"><b>Step 5 of 6:</b> Document Upload</div>
+<h2>Upload Age Proof Document</h2>
+<p class="note">Accepted documents: Birth certificate, School leaving certificate,
+Voter ID. Select a file from your device. Accepted formats:
+<b>PDF, JPG, JPEG, or PNG; maximum size 5 MB</b>.</p>
+<form method="post" enctype="multipart/form-data">
+  <label for="document">Choose age-proof file</label>
+  <input id="document" type="file" name="document"
+         accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+         required>
+  <p><button class="btn" type="submit">Upload &amp; Continue</button></p>
+</form>
+{% endblock %}
