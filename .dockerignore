@@ -1,0 +1,6 @@
+.venv
+.git
+.env
+**/__pycache__
+**/*.py[cod]
+DIRECTOR-NOTE.mp3

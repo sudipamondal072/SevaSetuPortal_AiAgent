@@ -1,0 +1,116 @@
+services:
+  db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: sewasetu
+      POSTGRES_USER: sewasetu
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./app/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+      - ./seed/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql
+
+  app:
+    build:
+      context: .
+      dockerfile: app/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
+      SECRET_KEY: ${SECRET_KEY:?Set a unique SECRET_KEY in .env (at least 32 characters)}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      SMS_GATEWAY_TOKEN: ${SMS_GATEWAY_TOKEN:?Set SMS_GATEWAY_TOKEN in .env (at least 32 characters)}
+      # the address at which people reach this portal; stamped into sign-in tokens and
+      # discovery documents, so it must be the public one when deployed
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8000}
+      CITIZEN_DRAFT_RETENTION_DAYS: ${CITIZEN_DRAFT_RETENTION_DAYS:-30}
+    depends_on:
+      - db
+      - smsgw
+    volumes:
+      - uploads:/var/sewasetu/uploads
+      - applogs:/var/log/sewasetu
+      - ./evals:/app/evals
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: app/Dockerfile
+    # Run the deemed-approval job once at startup (so a freshly restored
+    # database is brought up to date), then hand over to cron for the nightly run.
+    command: ["sh", "-c", "until python /app/scripts/deemed_approval.py; do sleep 5; done; exec cron -f"]
+    depends_on:
+      - db
+      - smsgw
+    environment:
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      SMS_GATEWAY_TOKEN: ${SMS_GATEWAY_TOKEN:?Set SMS_GATEWAY_TOKEN in .env (at least 32 characters)}
+      CITIZEN_DRAFT_RETENTION_DAYS: ${CITIZEN_DRAFT_RETENTION_DAYS:-30}
+    volumes:
+      - applogs:/var/log/sewasetu
+      - uploads:/var/sewasetu/uploads
+
+  smsgw:
+    build: ./smsgw
+    # Internal only; its inbox is proxied to authenticated portal administrators.
+    expose:
+      - "8025"
+    environment:
+      SMS_GATEWAY_TOKEN: ${SMS_GATEWAY_TOKEN:?Set SMS_GATEWAY_TOKEN in .env (at least 32 characters)}
+
+  citizen-mcp:
+    build:
+      context: .
+      dockerfile: mcp_servers/Dockerfile
+    command: ["python", "-m", "mcp_servers.citizen.server"]
+    ports:
+      - "8001:8001"
+    environment:
+      PORTAL_BASE_URL: http://app:8000
+      PORTAL_ISSUER_URL: ${PUBLIC_BASE_URL:-http://localhost:8000}
+      CITIZEN_MCP_PORT: 8001
+      CITIZEN_RESOURCE_URL: ${CITIZEN_RESOURCE_URL:-http://localhost:8001/mcp}
+    depends_on:
+      - app
+
+  officer-mcp:
+    build:
+      context: .
+      dockerfile: mcp_servers/Dockerfile
+    command: ["python", "-m", "mcp_servers.officer.server"]
+    ports:
+      - "8002:8002"
+    environment:
+      PORTAL_BASE_URL: http://app:8000
+      PORTAL_ISSUER_URL: ${PUBLIC_BASE_URL:-http://localhost:8000}
+      OFFICER_MCP_PORT: 8002
+      OFFICER_RESOURCE_URL: ${OFFICER_RESOURCE_URL:-http://localhost:8002/mcp}
+    depends_on:
+      - app
+
+  eval-runner:
+    profiles:
+      - eval
+    build:
+      context: .
+      dockerfile: mcp_servers/Dockerfile
+    command: ["python", "-m", "evals.run_evals"]
+    environment:
+      EVAL_DATABASE_URL: ${EVAL_DATABASE_URL-}
+      EVAL_CITIZEN_TOKENS: ${EVAL_CITIZEN_TOKENS-}
+      EVAL_OFFICER_TOKEN: ${EVAL_OFFICER_TOKEN-}
+      CITIZEN_MCP_URL: http://citizen-mcp:8001/mcp
+      OFFICER_MCP_URL: http://officer-mcp:8002/mcp
+    volumes:
+      - ./evals:/app/evals
+    depends_on:
+      - db
+      - citizen-mcp
+      - officer-mcp
+
+volumes:
+  pgdata:
+  uploads:
+  applogs:
