@@ -1,0 +1,9 @@
+
+mcp[cli]>=1.28,<2
+Flask
+requests
+PyJWT[crypto]>=2.10.1,<3
+cryptography
+pytest
+python-dotenv
+psycopg2-binary
