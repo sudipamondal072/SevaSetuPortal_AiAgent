@@ -1,0 +1,148 @@
+services:
+  eval-db:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: sewasetu_eval
+      POSTGRES_USER: sewasetu
+      POSTGRES_PASSWORD: ${EVAL_DB_PASSWORD:?Run evals/run_disposable_eval.ps1}
+    volumes:
+      - eval_pgdata:/var/lib/postgresql/data
+      - ./app/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./evals/disposable_marker.sql:/docker-entrypoint-initdb.d/02-evaluation-sandbox.sql:ro
+    networks:
+      default:
+        aliases:
+          - db
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sewasetu -d sewasetu_eval"]
+      interval: 2s
+      timeout: 2s
+      retries: 30
+
+  eval-smsgw:
+    build: ./smsgw
+    environment:
+      SMS_GATEWAY_TOKEN: ${EVAL_SMS_GATEWAY_TOKEN:?Run evals/run_disposable_eval.ps1}
+    networks:
+      default:
+        aliases:
+          - smsgw
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 8025), 2).close()"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  eval-app:
+    build:
+      context: .
+      dockerfile: app/Dockerfile
+    ports:
+      - "127.0.0.1:18000:8000"
+    environment:
+      ADMIN_USERNAME: ${EVAL_ADMIN_USERNAME:?Run evals/run_disposable_eval.ps1}
+      ADMIN_PASSWORD: ${EVAL_ADMIN_PASSWORD:?Run evals/run_disposable_eval.ps1}
+      DB_PASSWORD: ${EVAL_DB_PASSWORD:?Run evals/run_disposable_eval.ps1}
+      DB_HOST: eval-db
+      DB_NAME: sewasetu_eval
+      DB_USER: sewasetu
+      SECRET_KEY: ${EVAL_SECRET_KEY:?Run evals/run_disposable_eval.ps1}
+      SMS_GATEWAY_TOKEN: ${EVAL_SMS_GATEWAY_TOKEN:?Run evals/run_disposable_eval.ps1}
+      PUBLIC_BASE_URL: http://localhost:18000
+      CITIZEN_RESOURCE_URL: http://localhost:18001/mcp
+      OFFICER_RESOURCE_URL: http://localhost:18002/mcp
+      CITIZEN_DRAFT_RETENTION_DAYS: "30"
+    volumes:
+      - eval_uploads:/var/sewasetu/uploads
+      - ./evals/results:/app/evals/results
+    depends_on:
+      eval-db:
+        condition: service_healthy
+      eval-smsgw:
+        condition: service_started
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/', timeout=2)"
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  eval-citizen-mcp:
+    build:
+      context: .
+      dockerfile: mcp_servers/Dockerfile
+    command: ["python", "-m", "mcp_servers.citizen.server"]
+    ports:
+      - "127.0.0.1:18001:8001"
+    environment:
+      PORTAL_BASE_URL: http://eval-app:8000
+      PORTAL_ISSUER_URL: http://localhost:18000
+      CITIZEN_MCP_PORT: "8001"
+      CITIZEN_RESOURCE_URL: http://localhost:18001/mcp
+    depends_on:
+      eval-app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 8001), 2).close()"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  eval-officer-mcp:
+    build:
+      context: .
+      dockerfile: mcp_servers/Dockerfile
+    command: ["python", "-m", "mcp_servers.officer.server"]
+    ports:
+      - "127.0.0.1:18002:8002"
+    environment:
+      PORTAL_BASE_URL: http://eval-app:8000
+      PORTAL_ISSUER_URL: http://localhost:18000
+      OFFICER_MCP_PORT: "8002"
+      OFFICER_RESOURCE_URL: http://localhost:18002/mcp
+    depends_on:
+      eval-app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 8002), 2).close()"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  eval-runner:
+    build:
+      context: .
+      dockerfile: mcp_servers/Dockerfile
+    command: ["python", "-m", "evals.run_evals"]
+    environment:
+      EVAL_DATABASE_URL: postgresql://sewasetu:${EVAL_DB_PASSWORD:?Run evals/run_disposable_eval.ps1}@eval-db:5432/sewasetu_eval
+      EVAL_AUTO_OAUTH: "true"
+      EVAL_RESULTS_FILE: /app/evals/results/results.json
+      EVAL_PORTAL_BASE_URL: http://eval-app:8000
+      EVAL_SMS_GATEWAY_URL: http://eval-smsgw:8025
+      EVAL_SMS_GATEWAY_TOKEN: ${EVAL_SMS_GATEWAY_TOKEN:?Run evals/run_disposable_eval.ps1}
+      EVAL_ADMIN_USERNAME: ${EVAL_ADMIN_USERNAME:?Run evals/run_disposable_eval.ps1}
+      EVAL_ADMIN_PASSWORD: ${EVAL_ADMIN_PASSWORD:?Run evals/run_disposable_eval.ps1}
+      CITIZEN_RESOURCE_URL: http://localhost:18001/mcp
+      OFFICER_RESOURCE_URL: http://localhost:18002/mcp
+      CITIZEN_MCP_URL: http://eval-citizen-mcp:8001/mcp
+      OFFICER_MCP_URL: http://eval-officer-mcp:8002/mcp
+    volumes:
+      - ./evals/results:/app/evals/results
+      - eval_uploads:/var/sewasetu/uploads:ro
+    depends_on:
+      eval-db:
+        condition: service_healthy
+      eval-app:
+        condition: service_healthy
+      eval-citizen-mcp:
+        condition: service_healthy
+      eval-officer-mcp:
+        condition: service_healthy
+
+volumes:
+  eval_pgdata:
+  eval_uploads:
