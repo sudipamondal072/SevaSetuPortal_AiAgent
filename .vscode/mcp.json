@@ -2,12 +2,12 @@
   "servers": {
     "sewasetu-citizen": {
       "type": "http",
-      "url": "http://localhost:8001/mcp"
+      "url": "https://sevasetuportal.work.gd/citizen/mcp"
     }
     ,
     "sewasetu-officer": {
   "type": "http",
-  "url": "http://localhost:8002/mcp"
+  "url": "https://sevasetuportal.work.gd/officer/mcp"
 }
   }
 }

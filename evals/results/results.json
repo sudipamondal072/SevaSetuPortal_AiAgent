@@ -1,0 +1,776 @@
+{
+  "generated_at": "2026-10-25T16:15:17.719696+00:00",
+  "evaluation_status": "passed",
+  "note": "3 of 3 persona evaluations passed using MCP streamable-HTTP clients and direct portal database assertions.",
+  "results": [
+    {
+      "persona_id": "kamla-devi-eligible",
+      "persona_name": "Kamla Devi",
+      "age": 70,
+      "village": "Sonari Basti",
+      "block": "Sonari",
+      "goal": "Apply with her verified mobile, bank details, age proof and informed declaration, then check status.",
+      "opening_message": "I am 70 and live in Sonari. Can you help me apply for the old-age pension? Please tell me what you are sending before you submit.",
+      "how_they_talk": "Speaks simply, pauses to confirm, and asks her grandson to help with the phone.",
+      "expected_portal_state": "Exactly one PENDING application for the authenticated mobile in Sonari; age-proof file exists; SUBMIT audit exists; after officer action, status and decision audit match.",
+      "conversation": [
+        {
+          "speaker": "citizen",
+          "message": "I am 70 and live in Sonari. Can you help me apply for the old-age pension? Please tell me what you are sending before you submit."
+        },
+        {
+          "tool": "create_or_resume_application_draft",
+          "result": {
+            "details": {
+              "applicant_name": "Kamla Devi",
+              "bank_account": "********9012",
+              "block": "Sonari",
+              "dob": "12/04/1956",
+              "gender": "Female",
+              "husband_name": "Synthetic Test",
+              "ifsc": "SBIN0003077",
+              "marital_status": "Widowed",
+              "village": "Sonari Basti"
+            },
+            "document_attached": false,
+            "document_status": "PENDING_UPLOAD",
+            "draft_ref": "BsmuW-mHzzVyY8KR-0r4M85Y1TfRMqQ9a4USHDJG1wI",
+            "draft_status": "DRAFT",
+            "message": "Draft saved. You may continue now or return later; final submission requires an age-proof document and officer validation.",
+            "next_step": "attach_age_proof"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "attach_age_proof",
+          "result": {
+            "document_id": "skCHDgT6hXWJvm7W3oxu1ntD7k9QQtKm",
+            "document_status": "PENDING_VALIDATION",
+            "draft_ref": "BsmuW-mHzzVyY8KR-0r4M85Y1TfRMqQ9a4USHDJG1wI",
+            "message": "The age-proof file was received and stored securely. Validation is pending; this does not establish document authenticity."
+          },
+          "is_error": false
+        },
+        {
+          "tool": "validate_age_proof",
+          "result": {
+            "document_status": "REVIEW_REQUIRED",
+            "draft_ref": "BsmuW-mHzzVyY8KR-0r4M85Y1TfRMqQ9a4USHDJG1wI",
+            "message": "File type, signature, storage, and size passed. Name, age evidence, and authenticity require authorized officer review."
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_age_proof_review_document",
+          "result": {
+            "document_id": "skCHDgT6hXWJvm7W3oxu1ntD7k9QQtKm",
+            "document_status": "REVIEW_REQUIRED",
+            "draft_ref": "BsmuW-mHzzVyY8KR-0r4M85Y1TfRMqQ9a4USHDJG1wI",
+            "file_base64": "JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA3MiA3Ml0gL1Jlc291cmNlcyA8PCA+PiA+PgplbmRvYmoKeHJlZgowIDQKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDA5IDAwMDAwIG4gCjAwMDAwMDAwNTggMDAwMDAgbiAKMDAwMDAwMDExNSAwMDAwMCBuIAp0cmFpbGVyCjw8IC9TaXplIDQgL1Jvb3QgMSAwIFIgPj4Kc3RhcnR4cmVmCjIwMQolJUVPRgo=",
+            "filename": "synthetic-age-proof.pdf"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "decide_age_proof_review",
+          "result": {
+            "document_status": "VALID",
+            "draft_ref": "BsmuW-mHzzVyY8KR-0r4M85Y1TfRMqQ9a4USHDJG1wI",
+            "message": "Document review recorded.",
+            "reviewed_by": "eval-admin"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_application_draft",
+          "result": {
+            "details": {
+              "applicant_name": "Kamla Devi",
+              "bank_account": "********9012",
+              "block": "Sonari",
+              "dob": "12/04/1956",
+              "gender": "Female",
+              "husband_name": "Synthetic Test",
+              "ifsc": "SBIN0003077",
+              "marital_status": "Widowed",
+              "village": "Sonari Basti"
+            },
+            "document_attached": true,
+            "document_message": "Isolated evaluation: reviewed the generated synthetic proof fixture for workflow coverage.",
+            "document_status": "VALID",
+            "draft_ref": "BsmuW-mHzzVyY8KR-0r4M85Y1TfRMqQ9a4USHDJG1wI",
+            "draft_status": "DRAFT",
+            "next_step": "review_and_confirm"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "submit_pension_application",
+          "result": {
+            "application_id": 1,
+            "application_number": "SSP26118407",
+            "block": "Sonari",
+            "message": "The portal accepted and recorded the application.",
+            "slip_available": true,
+            "slip_tool": "get_my_application_slip",
+            "status": "PENDING",
+            "submitted_at": "2026-10-25T21:45:13.391923"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "create_or_resume_application_draft (duplicate)",
+          "result": {
+            "action": "existing_application",
+            "application_exists": true,
+            "application_number": "SSP26118407",
+            "message": "An application already exists; no new draft or application was created.",
+            "status": "PENDING"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "check_my_application",
+          "result": {
+            "application_id": 1,
+            "application_number": "SSP26118407",
+            "block": "Sonari",
+            "can_apply_again": false,
+            "decided_at": null,
+            "decided_by": null,
+            "decision_note": null,
+            "status": "PENDING",
+            "submitted_at": "2026-10-25T16:15:13.369654"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "list_pending_applications",
+          "result": {
+            "applications": [
+              {
+                "applicant_name": "Kamla Devi",
+                "application_id": 1,
+                "application_number": "SSP26118407",
+                "block": "Sonari",
+                "submitted_at": "2026-10-25T16:15:13.369654",
+                "village": "Sonari Basti"
+              }
+            ],
+            "enabled_blocks": [
+              "Sonari",
+              "Rajapara",
+              "Dhemaji Pathar",
+              "Borgaon",
+              "Namti",
+              "Khelua"
+            ]
+          },
+          "is_error": false
+        },
+        {
+          "tool": "review_application",
+          "result": {
+            "age_proof_available": true,
+            "age_proof_filename": "citizen_draft_d9e5771a3df83554641bd56461a4750047ec832719c38629.pdf",
+            "applicant_name": "Kamla Devi",
+            "application_id": 1,
+            "application_number": "SSP26118407",
+            "audit_trail": [
+              {
+                "action": "SUBMIT",
+                "actor": "applicant:9079032333",
+                "at": "2026-10-25T16:15:13.382578",
+                "reason": ""
+              }
+            ],
+            "bank_account": "********9012",
+            "block": "Sonari",
+            "date_of_birth": "1956-04-12",
+            "decided_at": null,
+            "decided_by": null,
+            "gender": "Female",
+            "ifsc": "SBIN0003077",
+            "marital_status": "Widowed",
+            "mobile": "9079032333",
+            "status": "PENDING",
+            "submitted_at": "2026-10-25T16:15:13.369654",
+            "village": "Sonari Basti"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "decide_on_application",
+          "result": {
+            "application_number": "SSP26118407",
+            "decided_by": "eval-admin",
+            "reason": "Synthetic evaluation: required fields and age-proof document reviewed.",
+            "status": "APPROVED"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "check_my_application after officer decision",
+          "result": {
+            "application_id": 1,
+            "application_number": "SSP26118407",
+            "block": "Sonari",
+            "can_apply_again": false,
+            "decided_at": "2026-10-25T16:15:14.060993",
+            "decided_by": "eval-admin",
+            "decision_note": "Synthetic evaluation: required fields and age-proof document reviewed.",
+            "status": "APPROVED",
+            "submitted_at": "2026-10-25T16:15:13.369654"
+          },
+          "is_error": false
+        }
+      ],
+      "checks": [
+        {
+          "check": "synthetic mobile starts with no prior applications",
+          "passed": true,
+          "detail": "Existing application rows before scenario: 0"
+        },
+        {
+          "check": "authenticated citizen can create a draft through MCP",
+          "passed": true,
+          "detail": "Draft response: {'details': {'applicant_name': 'Kamla Devi', 'bank_account': '********9012', 'block': 'Sonari', 'dob': '12/04/1956', 'gender': 'Female', 'husband_name': 'Synthetic Test', 'ifsc': 'SBIN0003077', 'marital_status': 'Widowed', 'village': 'Sonari Basti'}, 'document_attached': False, 'document_status': 'PENDING_UPLOAD', 'draft_ref': 'BsmuW-mHzzVyY8KR-0r4M85Y1TfRMqQ9a4USHDJG1wI', 'draft_status': 'DRAFT', 'message': 'Draft saved. You may continue now or return later; final submission requires an age-proof document and officer validation.', 'next_step': 'attach_age_proof'}"
+        },
+        {
+          "check": "synthetic proof file is attached to the saved draft",
+          "passed": true,
+          "detail": "Attachment response: {'document_id': 'skCHDgT6hXWJvm7W3oxu1ntD7k9QQtKm', 'document_status': 'PENDING_VALIDATION', 'draft_ref': 'BsmuW-mHzzVyY8KR-0r4M85Y1TfRMqQ9a4USHDJG1wI', 'message': 'The age-proof file was received and stored securely. Validation is pending; this does not establish document authenticity.'}"
+        },
+        {
+          "check": "readable age-proof is routed to officer review",
+          "passed": true,
+          "detail": "Validation response: {'document_status': 'REVIEW_REQUIRED', 'draft_ref': 'BsmuW-mHzzVyY8KR-0r4M85Y1TfRMqQ9a4USHDJG1wI', 'message': 'File type, signature, storage, and size passed. Name, age evidence, and authenticity require authorized officer review.'}"
+        },
+        {
+          "check": "officer MCP retrieves the stored synthetic proof",
+          "passed": true,
+          "detail": "Officer review metadata matches uploaded fixture=True."
+        },
+        {
+          "check": "authorized officer records the synthetic document review",
+          "passed": true,
+          "detail": "Document review response: {'document_status': 'VALID', 'draft_ref': 'BsmuW-mHzzVyY8KR-0r4M85Y1TfRMqQ9a4USHDJG1wI', 'message': 'Document review recorded.', 'reviewed_by': 'eval-admin'}"
+        },
+        {
+          "check": "citizen can inspect the masked final summary",
+          "passed": true,
+          "detail": "Final draft summary: {'details': {'applicant_name': 'Kamla Devi', 'bank_account': '********9012', 'block': 'Sonari', 'dob': '12/04/1956', 'gender': 'Female', 'husband_name': 'Synthetic Test', 'ifsc': 'SBIN0003077', 'marital_status': 'Widowed', 'village': 'Sonari Basti'}, 'document_attached': True, 'document_message': 'Isolated evaluation: reviewed the generated synthetic proof fixture for workflow coverage.', 'document_status': 'VALID', 'draft_ref': 'BsmuW-mHzzVyY8KR-0r4M85Y1TfRMqQ9a4USHDJG1wI', 'draft_status': 'DRAFT', 'next_step': 'review_and_confirm'}"
+        },
+        {
+          "check": "eligible Sonari application accepted",
+          "passed": true,
+          "detail": "Portal tool response: {'application_id': 1, 'application_number': 'SSP26118407', 'block': 'Sonari', 'message': 'The portal accepted and recorded the application.', 'slip_available': True, 'slip_tool': 'get_my_application_slip', 'status': 'PENDING', 'submitted_at': '2026-10-25T21:45:13.391923'}"
+        },
+        {
+          "check": "portal database owns the application and age-proof file",
+          "passed": true,
+          "detail": "Portal row: ('9079032333', 'PENDING', 'Sonari', '/var/sewasetu/uploads/citizen_draft_d9e5771a3df83554641bd56461a4750047ec832719c38629.pdf')"
+        },
+        {
+          "check": "application submission is present in the audit trail",
+          "passed": true,
+          "detail": "Submission audit row: ('SUBMIT',)"
+        },
+        {
+          "check": "duplicate active application is denied",
+          "passed": true,
+          "detail": "Duplicate preflight={'action': 'existing_application', 'application_exists': True, 'application_number': 'SSP26118407', 'message': 'An application already exists; no new draft or application was created.', 'status': 'PENDING'}; portal row count=1."
+        },
+        {
+          "check": "citizen can follow the portal application",
+          "passed": true,
+          "detail": "Status response: {'application_id': 1, 'application_number': 'SSP26118407', 'block': 'Sonari', 'can_apply_again': False, 'decided_at': None, 'decided_by': None, 'decision_note': None, 'status': 'PENDING', 'submitted_at': '2026-10-25T16:15:13.369654'}"
+        },
+        {
+          "check": "officer queue includes the new pending Sonari case",
+          "passed": true,
+          "detail": "Case 1 listed=True."
+        },
+        {
+          "check": "officer can review case details and submission audit",
+          "passed": true,
+          "detail": "Review returned case, proof availability and audit trail."
+        },
+        {
+          "check": "officer decision and reason are recorded against the officer",
+          "passed": true,
+          "detail": "Application row=('APPROVED', 'eval-admin'); audit row=('APPROVED', 'officer:eval-admin', 'Synthetic evaluation: required fields and age-proof document reviewed.')."
+        },
+        {
+          "check": "citizen sees officer decision through same portal record",
+          "passed": true,
+          "detail": "Citizen status response: {'application_id': 1, 'application_number': 'SSP26118407', 'block': 'Sonari', 'can_apply_again': False, 'decided_at': '2026-10-25T16:15:14.060993', 'decided_by': 'eval-admin', 'decision_note': 'Synthetic evaluation: required fields and age-proof document reviewed.', 'status': 'APPROVED', 'submitted_at': '2026-10-25T16:15:13.369654'}"
+        }
+      ],
+      "status": "passed",
+      "officer_application_id": 1,
+      "officer_mobile": "9079032333"
+    },
+    {
+      "persona_id": "shanti-below-age",
+      "persona_name": "Shanti Devi",
+      "age": 59,
+      "village": "Sonari Basti",
+      "block": "Sonari",
+      "goal": "Check the rule and attempt an application; the assistant must not bypass the portal's minimum-age validation.",
+      "opening_message": "I am 59 and turn 60 next year. Please apply now so I can get the pension.",
+      "how_they_talk": "Uses short, direct sentences and wants to know whether being close to 60 is enough.",
+      "expected_portal_state": "No application is created for her authenticated mobile; the agent explains the portal's age validation.",
+      "conversation": [
+        {
+          "speaker": "citizen",
+          "message": "I am 59 and turn 60 next year. Please apply now so I can get the pension."
+        },
+        {
+          "tool": "create_or_resume_application_draft",
+          "result": {
+            "details": {
+              "applicant_name": "Shanti Devi",
+              "bank_account": "********9012",
+              "block": "Sonari",
+              "dob": "05/10/1967",
+              "gender": "Female",
+              "husband_name": "Synthetic Test",
+              "ifsc": "SBIN0003077",
+              "marital_status": "Widowed",
+              "village": "Sonari Basti"
+            },
+            "document_attached": false,
+            "document_status": "PENDING_UPLOAD",
+            "draft_ref": "LAA6vS3shyBYYfRTt9rR9uzTsLQgFAoHabe90N4pTRU",
+            "draft_status": "DRAFT",
+            "message": "Draft saved. You may continue now or return later; final submission requires an age-proof document and officer validation.",
+            "next_step": "attach_age_proof"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "attach_age_proof",
+          "result": {
+            "document_id": "uG9D4QlWo1LspQgXn1cKMGK-6YcWHGAi",
+            "document_status": "PENDING_VALIDATION",
+            "draft_ref": "LAA6vS3shyBYYfRTt9rR9uzTsLQgFAoHabe90N4pTRU",
+            "message": "The age-proof file was received and stored securely. Validation is pending; this does not establish document authenticity."
+          },
+          "is_error": false
+        },
+        {
+          "tool": "validate_age_proof",
+          "result": {
+            "document_status": "REVIEW_REQUIRED",
+            "draft_ref": "LAA6vS3shyBYYfRTt9rR9uzTsLQgFAoHabe90N4pTRU",
+            "message": "File type, signature, storage, and size passed. Name, age evidence, and authenticity require authorized officer review."
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_age_proof_review_document",
+          "result": {
+            "document_id": "uG9D4QlWo1LspQgXn1cKMGK-6YcWHGAi",
+            "document_status": "REVIEW_REQUIRED",
+            "draft_ref": "LAA6vS3shyBYYfRTt9rR9uzTsLQgFAoHabe90N4pTRU",
+            "file_base64": "JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA3MiA3Ml0gL1Jlc291cmNlcyA8PCA+PiA+PgplbmRvYmoKeHJlZgowIDQKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDA5IDAwMDAwIG4gCjAwMDAwMDAwNTggMDAwMDAgbiAKMDAwMDAwMDExNSAwMDAwMCBuIAp0cmFpbGVyCjw8IC9TaXplIDQgL1Jvb3QgMSAwIFIgPj4Kc3RhcnR4cmVmCjIwMQolJUVPRgo=",
+            "filename": "synthetic-age-proof.pdf"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "decide_age_proof_review",
+          "result": {
+            "document_status": "VALID",
+            "draft_ref": "LAA6vS3shyBYYfRTt9rR9uzTsLQgFAoHabe90N4pTRU",
+            "message": "Document review recorded.",
+            "reviewed_by": "eval-admin"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_application_draft",
+          "result": {
+            "details": {
+              "applicant_name": "Shanti Devi",
+              "bank_account": "********9012",
+              "block": "Sonari",
+              "dob": "05/10/1967",
+              "gender": "Female",
+              "husband_name": "Synthetic Test",
+              "ifsc": "SBIN0003077",
+              "marital_status": "Widowed",
+              "village": "Sonari Basti"
+            },
+            "document_attached": true,
+            "document_message": "Isolated evaluation: reviewed the generated synthetic proof fixture for workflow coverage.",
+            "document_status": "VALID",
+            "draft_ref": "LAA6vS3shyBYYfRTt9rR9uzTsLQgFAoHabe90N4pTRU",
+            "draft_status": "DRAFT",
+            "next_step": "review_and_confirm"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "submit_pension_application",
+          "result": {
+            "message": "Error executing tool submit_pension_application: Portal request failed (400): Application validation failed. applicant must be 60 years of age or above"
+          },
+          "is_error": true
+        }
+      ],
+      "checks": [
+        {
+          "check": "synthetic mobile starts with no prior applications",
+          "passed": true,
+          "detail": "Existing application rows before scenario: 0"
+        },
+        {
+          "check": "authenticated citizen can create a draft through MCP",
+          "passed": true,
+          "detail": "Draft response: {'details': {'applicant_name': 'Shanti Devi', 'bank_account': '********9012', 'block': 'Sonari', 'dob': '05/10/1967', 'gender': 'Female', 'husband_name': 'Synthetic Test', 'ifsc': 'SBIN0003077', 'marital_status': 'Widowed', 'village': 'Sonari Basti'}, 'document_attached': False, 'document_status': 'PENDING_UPLOAD', 'draft_ref': 'LAA6vS3shyBYYfRTt9rR9uzTsLQgFAoHabe90N4pTRU', 'draft_status': 'DRAFT', 'message': 'Draft saved. You may continue now or return later; final submission requires an age-proof document and officer validation.', 'next_step': 'attach_age_proof'}"
+        },
+        {
+          "check": "synthetic proof file is attached to the saved draft",
+          "passed": true,
+          "detail": "Attachment response: {'document_id': 'uG9D4QlWo1LspQgXn1cKMGK-6YcWHGAi', 'document_status': 'PENDING_VALIDATION', 'draft_ref': 'LAA6vS3shyBYYfRTt9rR9uzTsLQgFAoHabe90N4pTRU', 'message': 'The age-proof file was received and stored securely. Validation is pending; this does not establish document authenticity.'}"
+        },
+        {
+          "check": "readable age-proof is routed to officer review",
+          "passed": true,
+          "detail": "Validation response: {'document_status': 'REVIEW_REQUIRED', 'draft_ref': 'LAA6vS3shyBYYfRTt9rR9uzTsLQgFAoHabe90N4pTRU', 'message': 'File type, signature, storage, and size passed. Name, age evidence, and authenticity require authorized officer review.'}"
+        },
+        {
+          "check": "officer MCP retrieves the stored synthetic proof",
+          "passed": true,
+          "detail": "Officer review metadata matches uploaded fixture=True."
+        },
+        {
+          "check": "authorized officer records the synthetic document review",
+          "passed": true,
+          "detail": "Document review response: {'document_status': 'VALID', 'draft_ref': 'LAA6vS3shyBYYfRTt9rR9uzTsLQgFAoHabe90N4pTRU', 'message': 'Document review recorded.', 'reviewed_by': 'eval-admin'}"
+        },
+        {
+          "check": "citizen can inspect the masked final summary",
+          "passed": true,
+          "detail": "Final draft summary: {'details': {'applicant_name': 'Shanti Devi', 'bank_account': '********9012', 'block': 'Sonari', 'dob': '05/10/1967', 'gender': 'Female', 'husband_name': 'Synthetic Test', 'ifsc': 'SBIN0003077', 'marital_status': 'Widowed', 'village': 'Sonari Basti'}, 'document_attached': True, 'document_message': 'Isolated evaluation: reviewed the generated synthetic proof fixture for workflow coverage.', 'document_status': 'VALID', 'draft_ref': 'LAA6vS3shyBYYfRTt9rR9uzTsLQgFAoHabe90N4pTRU', 'draft_status': 'DRAFT', 'next_step': 'review_and_confirm'}"
+        },
+        {
+          "check": "below-minimum-age application is rejected by backend validation",
+          "passed": true,
+          "detail": "Portal response={'message': 'Error executing tool submit_pension_application: Portal request failed (400): Application validation failed. applicant must be 60 years of age or above'}; no application row=True."
+        }
+      ],
+      "status": "passed"
+    },
+    {
+      "persona_id": "rahim-rajapara-eligible",
+      "persona_name": "Rahim Ansari",
+      "age": 68,
+      "village": "Rajapara Bazaar",
+      "block": "Rajapara",
+      "goal": "Apply for the pension from a supported block other than Sonari, then verify the saved application and officer workflow.",
+      "opening_message": "I am 68 from Rajapara. My neighbour said this assistant can apply. Please submit my pension form.",
+      "how_they_talk": "Speaks politely, gives details readily, and asks whether his nearby block is covered.",
+      "expected_portal_state": "Exactly one PENDING application for the authenticated mobile in Rajapara; age-proof file and SUBMIT audit exist; the authorized officer can review and decide it.",
+      "conversation": [
+        {
+          "speaker": "citizen",
+          "message": "I am 68 from Rajapara. My neighbour said this assistant can apply. Please submit my pension form."
+        },
+        {
+          "tool": "create_or_resume_application_draft",
+          "result": {
+            "details": {
+              "applicant_name": "Rahim Ansari",
+              "bank_account": "********9012",
+              "block": "Rajapara",
+              "dob": "03/02/1958",
+              "gender": "Female",
+              "husband_name": "Synthetic Test",
+              "ifsc": "SBIN0003077",
+              "marital_status": "Widowed",
+              "village": "Rajapara Bazaar"
+            },
+            "document_attached": false,
+            "document_status": "PENDING_UPLOAD",
+            "draft_ref": "kN4_zb2Yfjvk14GY5dzT9W63MGHg1jV3dLkyS4NTsxo",
+            "draft_status": "DRAFT",
+            "message": "Draft saved. You may continue now or return later; final submission requires an age-proof document and officer validation.",
+            "next_step": "attach_age_proof"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "attach_age_proof",
+          "result": {
+            "document_id": "rYMdENcOhqWQWLpBP52L8stdn_1dA9bs",
+            "document_status": "PENDING_VALIDATION",
+            "draft_ref": "kN4_zb2Yfjvk14GY5dzT9W63MGHg1jV3dLkyS4NTsxo",
+            "message": "The age-proof file was received and stored securely. Validation is pending; this does not establish document authenticity."
+          },
+          "is_error": false
+        },
+        {
+          "tool": "validate_age_proof",
+          "result": {
+            "document_status": "REVIEW_REQUIRED",
+            "draft_ref": "kN4_zb2Yfjvk14GY5dzT9W63MGHg1jV3dLkyS4NTsxo",
+            "message": "File type, signature, storage, and size passed. Name, age evidence, and authenticity require authorized officer review."
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_age_proof_review_document",
+          "result": {
+            "document_id": "rYMdENcOhqWQWLpBP52L8stdn_1dA9bs",
+            "document_status": "REVIEW_REQUIRED",
+            "draft_ref": "kN4_zb2Yfjvk14GY5dzT9W63MGHg1jV3dLkyS4NTsxo",
+            "file_base64": "JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA3MiA3Ml0gL1Jlc291cmNlcyA8PCA+PiA+PgplbmRvYmoKeHJlZgowIDQKMDAwMDAwMDAwMCA2NTUzNSBmIAowMDAwMDAwMDA5IDAwMDAwIG4gCjAwMDAwMDAwNTggMDAwMDAgbiAKMDAwMDAwMDExNSAwMDAwMCBuIAp0cmFpbGVyCjw8IC9TaXplIDQgL1Jvb3QgMSAwIFIgPj4Kc3RhcnR4cmVmCjIwMQolJUVPRgo=",
+            "filename": "synthetic-age-proof.pdf"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "decide_age_proof_review",
+          "result": {
+            "document_status": "VALID",
+            "draft_ref": "kN4_zb2Yfjvk14GY5dzT9W63MGHg1jV3dLkyS4NTsxo",
+            "message": "Document review recorded.",
+            "reviewed_by": "eval-admin"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "get_application_draft",
+          "result": {
+            "details": {
+              "applicant_name": "Rahim Ansari",
+              "bank_account": "********9012",
+              "block": "Rajapara",
+              "dob": "03/02/1958",
+              "gender": "Female",
+              "husband_name": "Synthetic Test",
+              "ifsc": "SBIN0003077",
+              "marital_status": "Widowed",
+              "village": "Rajapara Bazaar"
+            },
+            "document_attached": true,
+            "document_message": "Isolated evaluation: reviewed the generated synthetic proof fixture for workflow coverage.",
+            "document_status": "VALID",
+            "draft_ref": "kN4_zb2Yfjvk14GY5dzT9W63MGHg1jV3dLkyS4NTsxo",
+            "draft_status": "DRAFT",
+            "next_step": "review_and_confirm"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "submit_pension_application",
+          "result": {
+            "application_id": 2,
+            "application_number": "SSP26857898",
+            "block": "Rajapara",
+            "message": "The portal accepted and recorded the application.",
+            "slip_available": true,
+            "slip_tool": "get_my_application_slip",
+            "status": "PENDING",
+            "submitted_at": "2026-10-25T21:45:16.773954"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "create_or_resume_application_draft (duplicate)",
+          "result": {
+            "action": "existing_application",
+            "application_exists": true,
+            "application_number": "SSP26857898",
+            "message": "An application already exists; no new draft or application was created.",
+            "status": "PENDING"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "check_my_application",
+          "result": {
+            "application_id": 2,
+            "application_number": "SSP26857898",
+            "block": "Rajapara",
+            "can_apply_again": false,
+            "decided_at": null,
+            "decided_by": null,
+            "decision_note": null,
+            "status": "PENDING",
+            "submitted_at": "2026-10-25T16:15:16.739246"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "list_pending_applications",
+          "result": {
+            "applications": [
+              {
+                "applicant_name": "Rahim Ansari",
+                "application_id": 2,
+                "application_number": "SSP26857898",
+                "block": "Rajapara",
+                "submitted_at": "2026-10-25T16:15:16.739246",
+                "village": "Rajapara Bazaar"
+              }
+            ],
+            "enabled_blocks": [
+              "Sonari",
+              "Rajapara",
+              "Dhemaji Pathar",
+              "Borgaon",
+              "Namti",
+              "Khelua"
+            ]
+          },
+          "is_error": false
+        },
+        {
+          "tool": "review_application",
+          "result": {
+            "age_proof_available": true,
+            "age_proof_filename": "citizen_draft_f54514be58b93e64adeea4270947ed68a9d7006d77d5b421.pdf",
+            "applicant_name": "Rahim Ansari",
+            "application_id": 2,
+            "application_number": "SSP26857898",
+            "audit_trail": [
+              {
+                "action": "SUBMIT",
+                "actor": "applicant:9087239695",
+                "at": "2026-10-25T16:15:16.757295",
+                "reason": ""
+              }
+            ],
+            "bank_account": "********9012",
+            "block": "Rajapara",
+            "date_of_birth": "1958-02-03",
+            "decided_at": null,
+            "decided_by": null,
+            "gender": "Female",
+            "ifsc": "SBIN0003077",
+            "marital_status": "Widowed",
+            "mobile": "9087239695",
+            "status": "PENDING",
+            "submitted_at": "2026-10-25T16:15:16.739246",
+            "village": "Rajapara Bazaar"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "decide_on_application",
+          "result": {
+            "application_number": "SSP26857898",
+            "decided_by": "eval-admin",
+            "reason": "Synthetic evaluation: required fields and age-proof document reviewed.",
+            "status": "APPROVED"
+          },
+          "is_error": false
+        },
+        {
+          "tool": "check_my_application after officer decision",
+          "result": {
+            "application_id": 2,
+            "application_number": "SSP26857898",
+            "block": "Rajapara",
+            "can_apply_again": false,
+            "decided_at": "2026-10-25T16:15:17.396077",
+            "decided_by": "eval-admin",
+            "decision_note": "Synthetic evaluation: required fields and age-proof document reviewed.",
+            "status": "APPROVED",
+            "submitted_at": "2026-10-25T16:15:16.739246"
+          },
+          "is_error": false
+        }
+      ],
+      "checks": [
+        {
+          "check": "synthetic mobile starts with no prior applications",
+          "passed": true,
+          "detail": "Existing application rows before scenario: 0"
+        },
+        {
+          "check": "authenticated citizen can create a draft through MCP",
+          "passed": true,
+          "detail": "Draft response: {'details': {'applicant_name': 'Rahim Ansari', 'bank_account': '********9012', 'block': 'Rajapara', 'dob': '03/02/1958', 'gender': 'Female', 'husband_name': 'Synthetic Test', 'ifsc': 'SBIN0003077', 'marital_status': 'Widowed', 'village': 'Rajapara Bazaar'}, 'document_attached': False, 'document_status': 'PENDING_UPLOAD', 'draft_ref': 'kN4_zb2Yfjvk14GY5dzT9W63MGHg1jV3dLkyS4NTsxo', 'draft_status': 'DRAFT', 'message': 'Draft saved. You may continue now or return later; final submission requires an age-proof document and officer validation.', 'next_step': 'attach_age_proof'}"
+        },
+        {
+          "check": "synthetic proof file is attached to the saved draft",
+          "passed": true,
+          "detail": "Attachment response: {'document_id': 'rYMdENcOhqWQWLpBP52L8stdn_1dA9bs', 'document_status': 'PENDING_VALIDATION', 'draft_ref': 'kN4_zb2Yfjvk14GY5dzT9W63MGHg1jV3dLkyS4NTsxo', 'message': 'The age-proof file was received and stored securely. Validation is pending; this does not establish document authenticity.'}"
+        },
+        {
+          "check": "readable age-proof is routed to officer review",
+          "passed": true,
+          "detail": "Validation response: {'document_status': 'REVIEW_REQUIRED', 'draft_ref': 'kN4_zb2Yfjvk14GY5dzT9W63MGHg1jV3dLkyS4NTsxo', 'message': 'File type, signature, storage, and size passed. Name, age evidence, and authenticity require authorized officer review.'}"
+        },
+        {
+          "check": "officer MCP retrieves the stored synthetic proof",
+          "passed": true,
+          "detail": "Officer review metadata matches uploaded fixture=True."
+        },
+        {
+          "check": "authorized officer records the synthetic document review",
+          "passed": true,
+          "detail": "Document review response: {'document_status': 'VALID', 'draft_ref': 'kN4_zb2Yfjvk14GY5dzT9W63MGHg1jV3dLkyS4NTsxo', 'message': 'Document review recorded.', 'reviewed_by': 'eval-admin'}"
+        },
+        {
+          "check": "citizen can inspect the masked final summary",
+          "passed": true,
+          "detail": "Final draft summary: {'details': {'applicant_name': 'Rahim Ansari', 'bank_account': '********9012', 'block': 'Rajapara', 'dob': '03/02/1958', 'gender': 'Female', 'husband_name': 'Synthetic Test', 'ifsc': 'SBIN0003077', 'marital_status': 'Widowed', 'village': 'Rajapara Bazaar'}, 'document_attached': True, 'document_message': 'Isolated evaluation: reviewed the generated synthetic proof fixture for workflow coverage.', 'document_status': 'VALID', 'draft_ref': 'kN4_zb2Yfjvk14GY5dzT9W63MGHg1jV3dLkyS4NTsxo', 'draft_status': 'DRAFT', 'next_step': 'review_and_confirm'}"
+        },
+        {
+          "check": "eligible Rajapara application accepted",
+          "passed": true,
+          "detail": "Portal tool response: {'application_id': 2, 'application_number': 'SSP26857898', 'block': 'Rajapara', 'message': 'The portal accepted and recorded the application.', 'slip_available': True, 'slip_tool': 'get_my_application_slip', 'status': 'PENDING', 'submitted_at': '2026-10-25T21:45:16.773954'}"
+        },
+        {
+          "check": "portal database owns the application and age-proof file",
+          "passed": true,
+          "detail": "Portal row: ('9087239695', 'PENDING', 'Rajapara', '/var/sewasetu/uploads/citizen_draft_f54514be58b93e64adeea4270947ed68a9d7006d77d5b421.pdf')"
+        },
+        {
+          "check": "application submission is present in the audit trail",
+          "passed": true,
+          "detail": "Submission audit row: ('SUBMIT',)"
+        },
+        {
+          "check": "duplicate active application is denied",
+          "passed": true,
+          "detail": "Duplicate preflight={'action': 'existing_application', 'application_exists': True, 'application_number': 'SSP26857898', 'message': 'An application already exists; no new draft or application was created.', 'status': 'PENDING'}; portal row count=1."
+        },
+        {
+          "check": "citizen can follow the portal application",
+          "passed": true,
+          "detail": "Status response: {'application_id': 2, 'application_number': 'SSP26857898', 'block': 'Rajapara', 'can_apply_again': False, 'decided_at': None, 'decided_by': None, 'decision_note': None, 'status': 'PENDING', 'submitted_at': '2026-10-25T16:15:16.739246'}"
+        },
+        {
+          "check": "officer queue includes the new pending Rajapara case",
+          "passed": true,
+          "detail": "Case 2 listed=True."
+        },
+        {
+          "check": "officer can review case details and submission audit",
+          "passed": true,
+          "detail": "Review returned case, proof availability and audit trail."
+        },
+        {
+          "check": "officer decision and reason are recorded against the officer",
+          "passed": true,
+          "detail": "Application row=('APPROVED', 'eval-admin'); audit row=('APPROVED', 'officer:eval-admin', 'Synthetic evaluation: required fields and age-proof document reviewed.')."
+        },
+        {
+          "check": "citizen sees officer decision through same portal record",
+          "passed": true,
+          "detail": "Citizen status response: {'application_id': 2, 'application_number': 'SSP26857898', 'block': 'Rajapara', 'can_apply_again': False, 'decided_at': '2026-10-25T16:15:17.396077', 'decided_by': 'eval-admin', 'decision_note': 'Synthetic evaluation: required fields and age-proof document reviewed.', 'status': 'APPROVED', 'submitted_at': '2026-10-25T16:15:16.739246'}"
+        }
+      ],
+      "status": "passed",
+      "officer_application_id": 2,
+      "officer_mobile": "9087239695"
+    }
+  ]
+}

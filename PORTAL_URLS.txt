@@ -1,0 +1,70 @@
+SEWA SETU URL CHECKLIST
+=======================
+
+LOCAL DEFAULTS
+--------------
+Portal home:                    http://localhost:8000/
+About / scheme information:     http://localhost:8000/about
+Citizen application start:      http://localhost:8000/apply
+Citizen OTP verification:       http://localhost:8000/verify
+Citizen form steps:             http://localhost:8000/form/1
+                                http://localhost:8000/form/2
+                                http://localhost:8000/form/3
+Citizen age-proof upload:       http://localhost:8000/upload
+Citizen declaration:            http://localhost:8000/declaration
+Citizen application status:     http://localhost:8000/status
+Status password reset:          http://localhost:8000/status/reset
+Department login:               http://localhost:8000/admin
+Department dashboard:           http://localhost:8000/admin/dashboard
+Department application queue:   http://localhost:8000/admin/applications
+Admin-issued officer tokens:    http://localhost:8000/admin/tokens
+Evaluation dashboard:           http://localhost:8000/eval-dashboard
+SMS gateway console:            http://localhost:8000/__gateway/
+SMS gateway JSON inbox:         http://localhost:8000/__gateway/api/messages?to=<mobile>
+
+AGENT MCP ENDPOINTS
+-------------------
+Citizen MCP, streamable HTTP:   http://localhost:8001/mcp
+Officer MCP, streamable HTTP:   http://localhost:8002/mcp
+Citizen OAuth resource metadata:
+                                http://localhost:8001/.well-known/oauth-protected-resource/mcp
+Officer OAuth resource metadata:
+                                http://localhost:8002/.well-known/oauth-protected-resource/mcp
+Citizen server tool surface:    pension_scheme_information
+                                submit_pension_application
+                                check_my_application
+Officer server tool surface:    list_pending_applications
+                                review_application
+                                decide_on_application
+Default agent-enabled block:    Sonari
+
+PORTAL OAUTH AND DISCOVERY
+--------------------------
+Authorization server metadata:  http://localhost:8000/.well-known/oauth-authorization-server
+Portal signing keys:            http://localhost:8000/.well-known/jwks.json
+Dynamic client registration:    http://localhost:8000/oauth/register
+Authorization:                  http://localhost:8000/oauth/authorize
+Citizen/officer portal sign-in: http://localhost:8000/oauth/login
+Consent screen:                 http://localhost:8000/oauth/consent
+Token exchange/refresh:         http://localhost:8000/oauth/token
+Token revocation:               http://localhost:8000/oauth/revoke
+Connected applications:         http://localhost:8000/status/connections
+
+AGENT PORTAL API ROUTES
+-----------------------
+Current official scheme rules:  http://localhost:8000/api/agent/scheme
+Citizen's own application:      http://localhost:8000/api/agent/citizen/application
+Submit citizen application:     http://localhost:8000/api/agent/citizen/applications
+Officer pending queue:          http://localhost:8000/api/agent/officer/applications
+Officer case details:           http://localhost:8000/api/agent/officer/applications/<application_id>
+Officer decision:               http://localhost:8000/api/agent/officer/applications/<application_id>/decision
+
+PORTAL PAGES AFTER SUBMISSION
+-----------------------------
+Application details:            http://localhost:8000/application/<application_id>
+Officer application details:    http://localhost:8000/admin/application/<application_id>
+Acknowledgment PDF:             http://localhost:8000/ack/<application_id>.pdf
+
+Deployment note: replace localhost and ports with the exact public HTTPS hostnames
+and routes configured for that deployment. Keep citizen and officer MCP resources
+distinct, and issue OAuth tokens for the exact matching resource URL.
