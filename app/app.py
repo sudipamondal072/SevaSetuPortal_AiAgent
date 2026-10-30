@@ -1086,24 +1086,51 @@ def admin_dashboard():
 def admin_list():
     if not session.get("admin"):
         return redirect(url_for("admin_login"))
-    status = request.args.get("status", "PENDING")
+    selected_status = request.args.get("status", "PENDING")
     mobile = request.args.get("mobile", "").strip()
-    page = int(request.args.get("page", 1))
+    page = max(1, int(request.args.get("page", 1)))
+    offset = (page - 1) * 50
     conn = get_db()
     cur = conn.cursor()
     if mobile:
+        cur.execute(
+            "SELECT count(*) FROM applications WHERE mobile = %s",
+            (mobile,),
+        )
+        total_count = cur.fetchone()[0]
         cur.execute("SELECT id, application_no, applicant_name, mobile, block, status, "
-                    "submitted_at FROM applications WHERE mobile = %s ORDER BY submitted_at ASC",
-                    (mobile,))
-        status = "mobile %s" % mobile
+                    "submitted_at FROM applications WHERE mobile = %s "
+                    "ORDER BY submitted_at ASC LIMIT 50 OFFSET %s",
+                    (mobile, offset))
+        title = "mobile %s" % mobile
+    elif selected_status == "ALL":
+        cur.execute("SELECT count(*) FROM applications")
+        total_count = cur.fetchone()[0]
+        cur.execute("SELECT id, application_no, applicant_name, mobile, block, status, "
+                    "submitted_at FROM applications ORDER BY submitted_at ASC "
+                    "LIMIT 50 OFFSET %s",
+                    (offset,))
+        title = "All Applications"
     else:
+        cur.execute("SELECT count(*) FROM applications WHERE status = %s",
+                    (selected_status,))
+        total_count = cur.fetchone()[0]
         cur.execute("SELECT id, application_no, applicant_name, mobile, block, status, "
                     "submitted_at FROM applications WHERE status = %s "
                     "ORDER BY submitted_at ASC LIMIT 50 OFFSET %s",
-                    (status, (page - 1) * 50))
+                    (selected_status, offset))
+        title = selected_status
     rows = cur.fetchall()
     cur.close(); conn.close()
-    return render_template("admin_list.html", rows=rows, status=status, page=page, mobile=mobile)
+    return render_template(
+        "admin_list.html",
+        rows=rows,
+        status=title,
+        selected_status=selected_status,
+        page=page,
+        mobile=mobile,
+        total_count=total_count,
+    )
 
 
 @app.route("/admin/application/<int:app_id>")
