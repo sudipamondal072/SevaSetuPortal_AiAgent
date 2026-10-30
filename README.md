@@ -227,29 +227,29 @@ reusing that edit opportunity. This rule is specific to the web workflow.
    `verify_citizen_otp` with the code received on the citizen's mobile. OTP
    requests and verification attempts are rate-limited; verification is never
    skipped.
-2. Keep the returned `session_token` private and pass it only to the same
-   citizen's protected tools. It is short-lived and scoped to the citizen MCP
-   resource. Do not include it in chat or expose it to another person.
-3. Call `create_or_resume_application_draft` once as the preflight. The
-   authenticated backend checks for a blocking application and creates or
-   resumes the citizen's draft in that request. Do not first call
-   `check_my_application` for this same preflight.
-4. Collect missing details together and send them in one
-   `save_application_draft` call. The draft is associated with the verified
-   session's mobile number, not a caller-supplied identity.
-5. Request the actual age-proof file. `attach_age_proof` accepts actual bytes
+2. Successful verification automatically creates or resumes the citizen's
+   draft. The MCP server keeps the actual short-lived portal `session_token`
+   privately in its process and returns only an opaque `session_ref` for use
+   with protected tools. Never display either credential in chat. The reference
+   expires with the portal session and is lost if the Citizen MCP process
+   restarts; citizens can request and verify a new OTP to continue.
+3. Collect missing details in a labeled, one-question-at-a-time sequence and
+   save each answer immediately with `save_application_draft`. The draft is
+   associated with the verified session's mobile number, not a
+   caller-supplied identity.
+4. Request the actual age-proof file. `attach_age_proof` accepts actual bytes
    (base64 at the MCP tool boundary); it does not accept an inferred image or
    applicant-pasted document text. The backend checks file type, size,
    signature, readability, and storage.
-6. Call `validate_age_proof`. The backend records `REVIEW_REQUIRED` after
+5. Call `validate_age_proof`. The backend records `REVIEW_REQUIRED` after
    readability checks. This is **not** an authenticity or age decision.
-7. An authorized officer uses the officer MCP tools to inspect the actual
+6. An authorized officer uses the officer MCP tools to inspect the actual
    document and record a reasoned `VALID`, `INVALID`, or `REVIEW_REQUIRED`
    decision for the current document.
-8. When the document is `VALID`, call `get_application_draft`, present its
+7. When the document is `VALID`, call `get_application_draft`, present its
    masked summary, and obtain explicit confirmation of the summary and
    declaration. Only then call `submit_pension_application`.
-9. The citizen may call `check_my_application` for status or
+8. The citizen may call `check_my_application` for status or
    `get_my_application_slip` for the acknowledgment PDF.
 
 MCP drafts preserve incomplete progress and can be resumed. Missing
@@ -261,7 +261,8 @@ configurable. The web form has its own session-backed draft flow.
 
 Both servers use streamable HTTP and share the portal API and PostgreSQL
 records. Citizen transport does not require OAuth; citizen-specific tools
-require the short-lived token returned after mobile OTP verification. Officer
+require an opaque reference to the short-lived server-held session created
+after mobile OTP verification. Officer
 MCP and all officer actions continue to require an OAuth bearer token. The
 backend checks token signature, issuer, audience, role, scope, and identity.
 Tools are not interchangeable across the two server URLs.
@@ -272,7 +273,7 @@ Tools are not interchangeable across the two server URLs.
 |---|---|
 | `pension_scheme_information` | Read scheme requirements and supported blocks. |
 | `request_citizen_otp` | Request a rate-limited one-time code. |
-| `verify_citizen_otp` | Verify the one-time code and receive a private, short-lived citizen session token. |
+| `verify_citizen_otp` | Verify the one-time code and automatically create/resume a draft; returns an opaque session reference, never the portal token. |
 | `check_my_application` | Read the authenticated citizen's application or draft status. |
 | `create_or_resume_application_draft` | Preflight duplicate status and create/resume the citizen's draft. |
 | `save_application_draft` | Save supplied fields to that draft. |
@@ -283,9 +284,10 @@ Tools are not interchangeable across the two server URLs.
 | `get_my_application_slip` | Return the latest acknowledgment PDF. |
 | `withdraw_my_application` | Withdraw the authenticated citizen's own pending application after confirmation. |
 
-For personal data, retain the `session_token` returned by
-`verify_citizen_otp` in the MCP client and pass it to the citizen-only tools.
-Example MCP `tools/call` requests:
+For personal data, pass the opaque `session_ref` returned by
+`verify_citizen_otp` to protected tools. The actual portal token is retained
+in the Citizen MCP process and is not returned to the model. The successful
+verification result also includes the automatically created/resumed draft:
 
 ```json
 {
@@ -299,27 +301,22 @@ Example MCP `tools/call` requests:
 
 ```json
 {
-  "name": "pension_scheme_information",
-  "arguments": {}
-}
-```
-
-```json
-{
-  "name": "create_or_resume_application_draft",
+  "name": "save_application_draft",
   "arguments": {
-    "session_token": "<private verified session token>",
-    "applicant_name": "<applicant name>",
-    "date_of_birth": "<DD/MM/YYYY>",
-    "village": "<village>",
-    "block": "<supported portal block>"
+    "draft_ref": "<draft reference returned by verification>",
+    "session_ref": "<opaque reference returned by verification>",
+    "applicant_name": "<one answer at a time>"
   }
 }
 ```
 
-The draft call accepts optional `bank_account`, `ifsc`, `gender`,
-`marital_status`, and `husband_name` fields as well. Do not send bank details
-until they are needed. Draft responses mask bank account values.
+Ask for date of birth as `DD/MM/YYYY`. Other supported fields are `gender`,
+`marital_status`, `husband_name`, `village`, `block`, `bank_account`, and
+`ifsc`; save one answer per turn. Do not repeat complete bank account values.
+Draft responses and previews mask bank account values. The Citizen MCP uses
+an in-memory session-reference vault, so deploy a single MCP process or route
+each citizen's calls to the same process; a process restart requires OTP
+verification again.
 
 ### Officer tools
 
