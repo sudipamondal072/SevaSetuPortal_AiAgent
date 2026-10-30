@@ -534,7 +534,7 @@ def about():
     return render_template("about.html")
 
 
-@app.route("/__gateway/", defaults={"subpath": ""})
+@app.route("/__gateway", defaults={"subpath": ""}, strict_slashes=False)
 @app.route("/__gateway/<path:subpath>")
 def gateway_proxy(subpath):
     admin = bool(session.get("admin"))

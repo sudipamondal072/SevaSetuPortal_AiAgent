@@ -2012,6 +2012,27 @@ def test_public_sms_gateway_console_is_redacted_and_does_not_forward_admin_token
     assert "headers" not in gateway_request["kwargs"]
 
 
+@pytest.mark.parametrize("path", ["/__gateway", "/__gateway/"])
+def test_public_sms_gateway_console_accepts_both_slash_forms(
+    client, monkeypatch, path
+):
+    class GatewayResponse:
+        content = b"safe gateway status"
+        status_code = 200
+        headers = {"Content-Type": "text/html"}
+
+    monkeypatch.setattr(
+        portal.requests,
+        "get",
+        lambda *args, **kwargs: GatewayResponse(),
+    )
+
+    response = client.get(path)
+
+    assert response.status_code == 200
+    assert response.data == b"safe gateway status"
+
+
 def test_admin_still_gets_the_full_gateway_console_at_the_original_url(
     client, monkeypatch
 ):
