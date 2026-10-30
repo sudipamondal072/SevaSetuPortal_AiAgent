@@ -34,22 +34,3 @@ def test_gateway_inbox_fails_closed_when_token_is_not_configured(monkeypatch):
     response = sms_gateway.app.test_client().get("/api/messages")
 
     assert response.status_code == 503
-
-
-def test_public_gateway_status_redacts_recipients_and_message_contents(monkeypatch):
-    sms_gateway.MESSAGES.clear()
-    sms_gateway.MESSAGES.append({
-        "id": 1,
-        "to": "9000000001",
-        "text": "Your Sewa Setu OTP is 123456.",
-        "sent_at": 1,
-        "delivery_at": 0,
-    })
-
-    response = sms_gateway.app.test_client().get("/public")
-
-    assert response.status_code == 200
-    assert b"Messages" in response.data
-    assert b"9000000001" not in response.data
-    assert b"123456" not in response.data
-    sms_gateway.MESSAGES.clear()

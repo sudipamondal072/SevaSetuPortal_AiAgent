@@ -48,22 +48,6 @@ td,th{border:1px solid #ccc;padding:6px 10px;font-size:14px;text-align:left}
 </table></body></html>
 """
 
-PUBLIC_CONSOLE = """
-<!doctype html><html><head><title>PurvSMS Gateway Status</title>
-<meta http-equiv="refresh" content="5">
-<style>
-body{font-family:Arial,sans-serif;margin:24px;background:#f4f4f4}
-h2{color:#1a3c6e} table{border-collapse:collapse;background:#fff}
-td,th{border:1px solid #ccc;padding:8px 12px;text-align:left}
-</style></head><body>
-<h2>PurvSMS Gateway Status (simulation)</h2>
-<p>Operational message counts only. Recipient numbers and message contents
-are available only to authorized administrators.</p>
-<table><tr><th>Messages</th><th>In transit</th><th>Delivered</th></tr>
-<tr><td>{{ total }}</td><td>{{ queued }}</td><td>{{ delivered }}</td></tr>
-</table></body></html>
-"""
-
 
 @app.route("/api/send", methods=["POST"])
 def send():
@@ -123,19 +107,6 @@ def console():
             "eta": max(0, int(m["delivery_at"] - now)),
         })
     return render_template_string(CONSOLE, messages=view)
-
-
-@app.route("/public")
-def public_console():
-    now = time.time()
-    total = len(MESSAGES)
-    delivered = sum(now >= message["delivery_at"] for message in MESSAGES)
-    return render_template_string(
-        PUBLIC_CONSOLE,
-        total=total,
-        queued=total - delivered,
-        delivered=delivered,
-    )
 
 
 if __name__ == "__main__":

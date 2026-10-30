@@ -1,6 +1,5 @@
 import asyncio
 import base64
-import contextvars
 import hashlib
 import json
 import os
@@ -34,21 +33,6 @@ EVAL_SMS_GATEWAY_URL = os.getenv(
     "EVAL_SMS_GATEWAY_URL",
     "http://localhost:8025",
 ).rstrip("/")
-CITIZEN_SESSION_TOOLS = {
-    "check_my_application",
-    "create_or_resume_application_draft",
-    "save_application_draft",
-    "attach_age_proof",
-    "validate_age_proof",
-    "get_application_draft",
-    "get_my_application_slip",
-    "withdraw_my_application",
-    "submit_pension_application",
-}
-_ACTIVE_EVALUATION_SESSION_REF = contextvars.ContextVar(
-    "active_evaluation_session_ref",
-    default=None,
-)
 
 def make_pdf_fixture():
     objects = [
@@ -81,10 +65,8 @@ PDF_FIXTURE = make_pdf_fixture()
 
 
 @asynccontextmanager
-async def mcp_session(url, token=None, session_ref=None):
+async def mcp_session(url, token):
     headers = {"Authorization": f"Bearer {token}"}
-    if not token:
-        headers.clear()
     async with streamablehttp_client(url, headers=headers) as (
         read_stream,
         write_stream,
@@ -92,19 +74,11 @@ async def mcp_session(url, token=None, session_ref=None):
     ):
         async with ClientSession(read_stream, write_stream) as session:
             await session.initialize()
-            session_ref_context = _ACTIVE_EVALUATION_SESSION_REF.set(session_ref)
-            try:
-                yield session
-            finally:
-                _ACTIVE_EVALUATION_SESSION_REF.reset(session_ref_context)
+            yield session
 
 
 async def call_tool(session, name, arguments=None):
-    call_arguments = dict(arguments or {})
-    session_ref = _ACTIVE_EVALUATION_SESSION_REF.get()
-    if name in CITIZEN_SESSION_TOOLS and session_ref:
-        call_arguments.setdefault("session_ref", session_ref)
-    response = await session.call_tool(name, call_arguments)
+    response = await session.call_tool(name, arguments or {})
     structured = getattr(response, "structuredContent", None)
     if isinstance(structured, dict):
         result = structured
@@ -119,8 +93,6 @@ async def call_tool(session, name, arguments=None):
             result = json.loads(text)
         except json.JSONDecodeError:
             result = {"message": text}
-    if name == "verify_citizen_otp" and result.get("session_ref"):
-        _ACTIVE_EVALUATION_SESSION_REF.set(result["session_ref"])
     return result, bool(response.isError)
 
 
@@ -358,11 +330,6 @@ def verify_disposable_database(database_url):
 
 
 def safe_call_record(tool, result, is_error):
-    if isinstance(result, dict):
-        result = {
-            key: value for key, value in result.items()
-            if key not in {"session_ref", "session_token"}
-        }
     return {
         "tool": tool,
         "result": result,
@@ -457,68 +424,35 @@ async def evaluate_persona(persona, token, officer_token, database_url):
         item["note"] = "Use a clean evaluation database and a fresh citizen identity."
         return item
 
-    async with mcp_session(CITIZEN_MCP_URL) as session:
-        otp_request, otp_request_error = await call_tool(
+    async with mcp_session(CITIZEN_MCP_URL, token) as session:
+        draft, draft_error = await call_tool(
             session,
-            "request_citizen_otp",
-            {"mobile": mobile},
+            "create_or_resume_application_draft",
+            {
+                "applicant_name": persona["name"],
+                "date_of_birth": persona["date_of_birth"],
+                "village": persona["village"],
+                "block": persona["block"],
+                "bank_account": "123456789012",
+                "ifsc": "SBIN0003077",
+                "gender": "Female",
+                "marital_status": "Widowed",
+                "husband_name": "Synthetic Test",
+            },
         )
         item["conversation"].append(
-            safe_call_record("request_citizen_otp", otp_request, otp_request_error)
+            safe_call_record("create_or_resume_application_draft", draft, draft_error)
         )
-        if otp_request_error or otp_request.get("status") != "otp_sent":
-            item["note"] = "Citizen MCP could not request the synthetic OTP."
-            return item
-
-        sms_token = os.getenv("EVAL_SMS_GATEWAY_TOKEN", "")
-        otp = _delivered_otp(mobile, sms_token)
-        verification, verification_error = await call_tool(
-            session,
-            "verify_citizen_otp",
-            {"mobile": mobile, "otp": otp},
-        )
-        item["conversation"].append(
-            safe_call_record("verify_citizen_otp", verification, verification_error)
-        )
-        if verification_error or not verification.get("verified"):
-            item["note"] = "Citizen MCP OTP verification did not succeed."
-            return item
-        item["evaluation_session_ref"] = verification.get("session_ref")
-
-        draft = verification.get("draft") or {}
         draft_ref = draft.get("draft_ref")
         add_check(
             item,
-            "OTP verification automatically creates a citizen draft through MCP",
-            bool(draft_ref),
-            "Verification preflight response: %s" % draft,
+            "authenticated citizen can create a draft through MCP",
+            not draft_error and bool(draft_ref),
+            "Draft response: %s" % draft,
         )
         if not draft_ref:
-            item["note"] = "OTP verification did not return an application draft."
+            item["note"] = "Draft preflight did not return a draft reference."
             return item
-        draft_fields = (
-            ("applicant_name", persona["name"]),
-            ("date_of_birth", persona["date_of_birth"]),
-            ("village", persona["village"]),
-            ("block", persona["block"]),
-            ("bank_account", "123456789012"),
-            ("ifsc", "SBIN0003077"),
-            ("gender", "Female"),
-            ("marital_status", "Widowed"),
-            ("husband_name", "Synthetic Test"),
-        )
-        for field, value in draft_fields:
-            saved, save_error = await call_tool(
-                session,
-                "save_application_draft",
-                {"draft_ref": draft_ref, field: value},
-            )
-            item["conversation"].append(
-                safe_call_record("save_application_draft", saved, save_error)
-            )
-            if save_error or saved.get("saved") is False:
-                item["note"] = "Citizen MCP could not save %s." % field
-                return item
 
         uploaded, upload_error = await call_tool(
             session,
@@ -775,12 +709,9 @@ async def evaluate_officer(item, token, database_url):
             and audit == ("APPROVED", "officer:" + officer, reason),
             "Application row=%s; audit row=%s." % (row, audit),
         )
-        citizen_session_ref = item.pop("evaluation_session_ref", None)
-        if citizen_session_ref:
-            async with mcp_session(
-                CITIZEN_MCP_URL,
-                session_ref=citizen_session_ref,
-            ) as citizen_session:
+        citizen_token = item.pop("evaluation_citizen_token", None)
+        if citizen_token:
+            async with mcp_session(CITIZEN_MCP_URL, citizen_token) as citizen_session:
                 status, status_error = await call_tool(
                     citizen_session,
                     "check_my_application",
@@ -880,8 +811,8 @@ def main():
                     database_url,
                 )
                 if record.get("officer_application_id"):
+                    record["evaluation_citizen_token"] = citizen_tokens[persona["id"]]
                     await evaluate_officer(record, officer_token, database_url)
-                record.pop("evaluation_session_ref", None)
                 evaluated.append(record)
             return evaluated
 

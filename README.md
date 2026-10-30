@@ -31,7 +31,7 @@ the web portal and both MCP servers use its backend and the same database.
 |---|---|
 | Citizen portal | Mobile OTP sign-in, application form, document upload, review, submission, status, and withdrawal. |
 | Flask backend | Shared application validation, database operations, OAuth authorization, citizen and officer API routes. |
-| Citizen MCP | OTP-verified citizen tools for scheme information, resumable drafts, documents, submission, status, and withdrawal. |
+| Citizen MCP | Authenticated citizen tools for scheme information, resumable drafts, documents, submission, status, and withdrawal. |
 | Officer MCP | Authenticated officer tools for application and document review, queue operations, audit notes, and decisions. |
 | PostgreSQL | Stores applications, drafts, portal users, OAuth state, and audit records. |
 | SMS gateway | Local in-memory SMS simulation used for OTPs and notifications; not an external telecom integration. |
@@ -55,7 +55,7 @@ flowchart LR
     Citizen[Citizen browser] --> Portal[Flask portal and backend]
     CitizenAI[Citizen AI client] --> CitizenMCP[Citizen MCP<br/>streamable HTTP]
     OfficerAI[Officer AI client] --> OfficerMCP[Officer MCP<br/>streamable HTTP]
-    CitizenMCP -->|OTP-issued citizen session<br/>/api/agent/citizen/*| Portal
+    CitizenMCP -->|Citizen OAuth token<br/>/api/agent/citizen/*| Portal
     OfficerMCP -->|Officer OAuth token<br/>/api/agent/officer/*| Portal
     Portal --> DB[(PostgreSQL)]
     Portal --> Uploads[(Shared document volume)]
@@ -68,10 +68,8 @@ flowchart LR
     Portal --> Dashboard[Evaluation dashboard]
 ```
 
-The citizen and officer servers have separate URLs and tool lists. Citizen
-MCP transport is public, but every citizen-specific operation requires a
-short-lived session issued only after OTP verification. Officer MCP remains
-OAuth-protected with its own audience and scope. MCP requests are forwarded by
+The citizen and officer servers have separate URLs, OAuth audiences, required
+scopes, and tool lists. MCP requests are forwarded by
 [`PortalClient`](./mcp_servers/common/portal_client.py) to the existing Flask
 backend. They do not maintain another application database. The normal web
 portal and MCP services share PostgreSQL and the document volume in Docker
@@ -185,15 +183,13 @@ officer-only tools.
 | Status portal | <http://localhost:8000/status> | Applicant sign-in and application status. |
 | Department admin | <http://localhost:8000/admin> | Requires `ADMIN_USERNAME` and `ADMIN_PASSWORD`. |
 | Evaluation dashboard | <http://localhost:8000/eval-dashboard> | Displays the evaluation results file. |
-| Citizen MCP | <http://localhost:8001/mcp> | Streamable HTTP; OTP-verified citizen sessions for personal operations. |
+| Citizen MCP | <http://localhost:8001/mcp> | Streamable HTTP; citizen OAuth scope. |
 | Officer MCP | <http://localhost:8002/mcp> | Streamable HTTP; officer OAuth scope. |
 | Scheme API | <http://localhost:8000/api/agent/scheme> | Public rules and supported-block response. |
 
 PostgreSQL and the SMS gateway are internal Compose services; they are not
-published as host ports. The redacted simulated SMS status console is publicly
-available at `/__gateway/`. Department administrators see the full console at
-that URL after sign-in; unauthenticated visitors see counts only. Inbox and
-send operations require departmental admin authentication.
+published as host ports. The simulated SMS console is proxied through the
+portal at `/__gateway/` and requires departmental admin authentication.
 
 ## Citizen application workflow
 
@@ -223,33 +219,26 @@ reusing that edit opportunity. This rule is specific to the web workflow.
 
 ### Citizen MCP
 
-1. Connect to Citizen MCP without OAuth. Call `request_citizen_otp`, then
-   `verify_citizen_otp` with the code received on the citizen's mobile. OTP
-   requests and verification attempts are rate-limited; verification is never
-   skipped.
-2. Successful verification automatically creates or resumes the citizen's
-   draft. The MCP server keeps the actual short-lived portal `session_token`
-   privately in its process and returns only an opaque `session_ref` for use
-   with protected tools. Never display either credential in chat. The reference
-   expires with the portal session and is lost if the Citizen MCP process
-   restarts; citizens can request and verify a new OTP to continue.
-3. Collect missing details in a labeled, one-question-at-a-time sequence and
-   save each answer immediately with `save_application_draft`. The draft is
-   associated with the verified session's mobile number, not a
-   caller-supplied identity.
-4. Request the actual age-proof file. `attach_age_proof` accepts actual bytes
+1. Call `create_or_resume_application_draft` once as the preflight. The
+   authenticated backend checks for a blocking application and creates or
+   resumes the citizen's draft in that request. Do not first call
+   `check_my_application` for this same preflight.
+2. Collect missing details together and send them in one
+   `save_application_draft` call. The draft is associated with the OAuth
+   identity, not a caller-supplied mobile number.
+3. Request the actual age-proof file. `attach_age_proof` accepts actual bytes
    (base64 at the MCP tool boundary); it does not accept an inferred image or
    applicant-pasted document text. The backend checks file type, size,
    signature, readability, and storage.
-5. Call `validate_age_proof`. The backend records `REVIEW_REQUIRED` after
+4. Call `validate_age_proof`. The backend records `REVIEW_REQUIRED` after
    readability checks. This is **not** an authenticity or age decision.
-6. An authorized officer uses the officer MCP tools to inspect the actual
+5. An authorized officer uses the officer MCP tools to inspect the actual
    document and record a reasoned `VALID`, `INVALID`, or `REVIEW_REQUIRED`
    decision for the current document.
-7. When the document is `VALID`, call `get_application_draft`, present its
+6. When the document is `VALID`, call `get_application_draft`, present its
    masked summary, and obtain explicit confirmation of the summary and
    declaration. Only then call `submit_pension_application`.
-8. The citizen may call `check_my_application` for status or
+7. The citizen may call `check_my_application` for status or
    `get_my_application_slip` for the acknowledgment PDF.
 
 MCP drafts preserve incomplete progress and can be resumed. Missing
@@ -260,20 +249,16 @@ configurable. The web form has its own session-backed draft flow.
 ## MCP servers
 
 Both servers use streamable HTTP and share the portal API and PostgreSQL
-records. Citizen transport does not require OAuth; citizen-specific tools
-require an opaque reference to the short-lived server-held session created
-after mobile OTP verification. Officer
-MCP and all officer actions continue to require an OAuth bearer token. The
-backend checks token signature, issuer, audience, role, scope, and identity.
-Tools are not interchangeable across the two server URLs.
+records. A citizen OAuth bearer token is required for citizen operations; an
+officer token is required for officer operations. The backend also checks
+token signature, issuer, audience, role, scope, and identity. Tools are not
+interchangeable across the two server URLs.
 
 ### Citizen tools
 
 | Tool | Purpose |
 |---|---|
 | `pension_scheme_information` | Read scheme requirements and supported blocks. |
-| `request_citizen_otp` | Request a rate-limited one-time code. |
-| `verify_citizen_otp` | Verify the one-time code and automatically create/resume a draft; returns an opaque session reference, never the portal token. |
 | `check_my_application` | Read the authenticated citizen's application or draft status. |
 | `create_or_resume_application_draft` | Preflight duplicate status and create/resume the citizen's draft. |
 | `save_application_draft` | Save supplied fields to that draft. |
@@ -284,39 +269,30 @@ Tools are not interchangeable across the two server URLs.
 | `get_my_application_slip` | Return the latest acknowledgment PDF. |
 | `withdraw_my_application` | Withdraw the authenticated citizen's own pending application after confirmation. |
 
-For personal data, pass the opaque `session_ref` returned by
-`verify_citizen_otp` to protected tools. The actual portal token is retained
-in the Citizen MCP process and is not returned to the model. The successful
-verification result also includes the automatically created/resumed draft:
+Example MCP `tools/call` requests (the client must already be authenticated):
 
 ```json
 {
-  "name": "verify_citizen_otp",
-  "arguments": {
-    "mobile": "<citizen mobile>",
-    "otp": "<six-digit code>"
-  }
+  "name": "pension_scheme_information",
+  "arguments": {}
 }
 ```
 
 ```json
 {
-  "name": "save_application_draft",
+  "name": "create_or_resume_application_draft",
   "arguments": {
-    "draft_ref": "<draft reference returned by verification>",
-    "session_ref": "<opaque reference returned by verification>",
-    "applicant_name": "<one answer at a time>"
+    "applicant_name": "<applicant name>",
+    "date_of_birth": "<DD/MM/YYYY>",
+    "village": "<village>",
+    "block": "<supported portal block>"
   }
 }
 ```
 
-Ask for date of birth as `DD/MM/YYYY`. Other supported fields are `gender`,
-`marital_status`, `husband_name`, `village`, `block`, `bank_account`, and
-`ifsc`; save one answer per turn. Do not repeat complete bank account values.
-Draft responses and previews mask bank account values. The Citizen MCP uses
-an in-memory session-reference vault, so deploy a single MCP process or route
-each citizen's calls to the same process; a process restart requires OTP
-verification again.
+The draft call accepts optional `bank_account`, `ifsc`, `gender`,
+`marital_status`, and `husband_name` fields as well. Do not send bank details
+until they are needed. Draft responses mask bank account values.
 
 ### Officer tools
 
@@ -354,7 +330,7 @@ directory, minimum age, scheme deadline, and SLA.
 | `SECRET_KEY` | Yes | Flask session signing key; must be at least 32 characters. |
 | `SMS_GATEWAY_TOKEN` | Yes | Shared bearer token for the local SMS gateway; must be at least 32 characters. |
 | `PUBLIC_BASE_URL` | Optional | Public portal OAuth issuer and URL base; defaults to `http://localhost:8000`. Use the externally reachable HTTPS URL in production. |
-| `CITIZEN_RESOURCE_URL` | Optional | Audience for OTP-issued Citizen MCP sessions; defaults to `http://localhost:8001/mcp`. |
+| `CITIZEN_RESOURCE_URL` | Optional | Citizen MCP OAuth audience; defaults to `http://localhost:8001/mcp`. |
 | `OFFICER_RESOURCE_URL` | Optional | Officer MCP OAuth audience; defaults to `http://localhost:8002/mcp`. |
 | `PORTAL_BASE_URL` | Optional | Portal base URL used by MCP clients; defaults to `http://localhost:8000` outside Compose and `http://app:8000` in Compose. |
 | `PORTAL_ISSUER_URL` | Optional | Issuer advertised by MCP OAuth; defaults to `PORTAL_BASE_URL` (Compose uses `PUBLIC_BASE_URL`). |
@@ -396,7 +372,7 @@ application period before deployment.
 | Village-to-block relationship | Not checked. There is no authoritative village registry in this repository. |
 | Age-proof document | PDF/JPG/JPEG/PNG, up to 5 MB; file signature and readability are checked. Readability alone does not establish age or authenticity. MCP submission requires a `VALID` officer review. |
 | Duplicate applications | An advisory transaction lock and active-application query prevent concurrent duplicate submissions across web and MCP. A new application is permitted only when prior applications are `REJECTED` or `WITHDRAWN`. |
-| Citizen identity | Citizen MCP identity comes from the verified mobile OTP session; OTP proves access to a phone number, not legal identity, age, eligibility, or document authenticity. |
+| Citizen identity | Citizen MCP identity comes from a verified OAuth token; OTP establishes access to a phone number, not identity, age, eligibility, or document authenticity. |
 | Application editing | Web portal permits one persisted correction after final review and before submission. MCP drafts can be saved/resumed; that web-only edit limit does not apply to MCP saves. |
 | Audit | Submission, withdrawal, and officer decisions write audit records. Officer decisions require a reason. |
 | Deemed approval | Scheduler considers pending applications older than the configured 15-day SLA, skips flagged cases, records `DEEMED_APPROVED`, and attempts SMS notification. |
@@ -507,11 +483,11 @@ results file records **3/3 passed**.
 |---|---|---|
 | Compose services do not start | `docker compose ps`; `docker compose logs --tail 100 db app` | Confirm Docker Desktop is running and all required `.env` values are set. Check the first reported container error. |
 | Database connection error | `docker compose logs --tail 100 db app` | Confirm the DB container is running and `DB_PASSWORD` is consistent. Schema and seed scripts run only on a new database volume; do not destroy an existing volume to troubleshoot. |
-| Missing table | Check app logs and whether the database volume was initialized with `app/schema.sql`. | Initialization scripts are not migrations and do not rerun on an existing volume. Citizen MCP OTP-session tables are created lazily by the API; for other missing tables, back up records and apply a reviewed migration. |
+| Missing table | Check app logs and whether the database volume was initialized with `app/schema.sql`. | Initialization scripts are not migrations and do not rerun on an existing volume. Back up records and apply a reviewed migration; no generic reset command is safe here. |
 | Portal URL returns 404 | `Invoke-WebRequest -UseBasicParsing http://localhost:8000/`; inspect `docker compose logs --tail 100 app` | Confirm the `app` service is running and the path is one of the routes listed above. |
-| OTP does not arrive | Check the portal and `smsgw` logs; visit the redacted `http://localhost:8000/__gateway/` status page. | Verify `SMS_GATEWAY_TOKEN` is identical for app and gateway. The local gateway simulates delivery and is not an external telecom provider. |
-| MCP tools do not appear | Check `docker compose ps citizen-mcp officer-mcp`; inspect their logs; confirm URLs end in `/mcp`. | Configure the correct endpoint. Citizen transport needs no OAuth; citizen-specific tools still require OTP verification. Officer MCP requires OAuth. |
-| MCP authentication/authorization failure | Confirm the URL and, for citizen tools, use an unexpired session returned by OTP verification. | Request a fresh OTP if the citizen session expired. Officer MCP still requires OAuth; citizen credentials do not grant officer access. |
+| OTP does not arrive | Check the portal and `smsgw` logs; visit `http://localhost:8000/__gateway/` after admin sign-in. | Verify `SMS_GATEWAY_TOKEN` is identical for app and gateway. The local gateway simulates delivery and is not an external telecom provider. |
+| MCP tools do not appear | Check `docker compose ps citizen-mcp officer-mcp`; inspect their logs; confirm URLs end in `/mcp`. | Configure the client with the correct separate endpoint, then complete OAuth consent for that resource. |
+| MCP authentication/authorization failure | Confirm the URL, issuer, audience, token role, and scope match the server. | Reauthorize against the correct citizen or officer endpoint. Citizen credentials do not grant officer access. |
 | Evaluation dashboard is empty or unavailable | Check `http://localhost:8000/eval-dashboard` and whether `evals/results/results.json` exists. | Run the disposable evaluation to populate a fresh result. Do not claim a pass when status is `not_run`. |
 | Evaluation says `not_run` | Inspect its note for missing evaluation database/token configuration. | Use `.\evals\run_disposable_eval.ps1`, or supply all required variables to a marked empty disposable database. |
 | Application seems slow | Review `app` logs for `agent_request`, `agent_db_step`, and `agent_step`; review MCP logs for `mcp_tool` and `mcp_portal_http`. | The repository does not measure external LLM latency. Use the assistant host's telemetry for model calls and conversation history. |
@@ -526,12 +502,9 @@ it deletes named database and upload volumes.
   uploaded documents out of source control, logs, screenshots, and evaluation
   reports.
 - The `.gitignore` excludes `.env`; use `.env.example` only as a template.
-- Citizen-specific MCP operations require a short-lived portal-signed token
-  issued after OTP verification. OTP challenges are single-use, time-limited,
-  rate-limited, and stored as keyed hashes. The Officer MCP transport and
-  approval/rejection actions remain OAuth-protected. Backend authorization
-  checks identity and role; officer API operations are restricted to
-  supported portal blocks.
+- Citizen and officer MCP endpoints have separate OAuth audiences and scopes.
+  Backend authorization checks identity and role; officer API operations are
+  restricted to supported portal blocks.
 - The backend validates submitted application fields and uses a transaction
   lock for duplicate prevention. Client-side checks do not replace backend
   validation.
@@ -585,8 +558,7 @@ docker-compose.eval.yml     Disposable evaluation services
 ## Project status and license
 
 Implemented and covered by repository tests: web application flow, citizen
-draft and document workflow, OTP-protected Citizen MCP and OAuth-protected
-Officer MCP APIs,
+draft and document workflow, OAuth-protected citizen/officer MCP APIs,
 application/audit persistence, officer review and decisions, synthetic
 evaluation runner, and evaluation dashboard.
 

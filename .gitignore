@@ -1,18 +1,5 @@
 .env
-venv/
 .venv/
 __pycache__/
 *.py[cod]
 .pytest_cache/
-ENV/
-# Local MCP configuration
-.mcp.json
-.vscode/mcp.json
-
-# Local reference files
-DIRECTOR-NOTE.mp3
-PORTAL_URLS.txt
-app_file_paths.txt
-
-# Generated evaluation results
-evals/results/results.json
