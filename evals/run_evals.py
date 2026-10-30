@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import contextvars
 import hashlib
 import json
 import os
@@ -33,6 +34,21 @@ EVAL_SMS_GATEWAY_URL = os.getenv(
     "EVAL_SMS_GATEWAY_URL",
     "http://localhost:8025",
 ).rstrip("/")
+CITIZEN_SESSION_TOOLS = {
+    "check_my_application",
+    "create_or_resume_application_draft",
+    "save_application_draft",
+    "attach_age_proof",
+    "validate_age_proof",
+    "get_application_draft",
+    "get_my_application_slip",
+    "withdraw_my_application",
+    "submit_pension_application",
+}
+_ACTIVE_EVALUATION_SESSION_TOKEN = contextvars.ContextVar(
+    "active_evaluation_session_token",
+    default=None,
+)
 
 def make_pdf_fixture():
     objects = [
@@ -74,11 +90,19 @@ async def mcp_session(url, token):
     ):
         async with ClientSession(read_stream, write_stream) as session:
             await session.initialize()
-            yield session
+            session_token_context = _ACTIVE_EVALUATION_SESSION_TOKEN.set(token)
+            try:
+                yield session
+            finally:
+                _ACTIVE_EVALUATION_SESSION_TOKEN.reset(session_token_context)
 
 
 async def call_tool(session, name, arguments=None):
-    response = await session.call_tool(name, arguments or {})
+    call_arguments = dict(arguments or {})
+    session_token = _ACTIVE_EVALUATION_SESSION_TOKEN.get()
+    if name in CITIZEN_SESSION_TOOLS and session_token:
+        call_arguments.setdefault("session_token", session_token)
+    response = await session.call_tool(name, call_arguments)
     structured = getattr(response, "structuredContent", None)
     if isinstance(structured, dict):
         result = structured

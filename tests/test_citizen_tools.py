@@ -15,6 +15,8 @@ from mcp_servers.citizen.server import mcp
 def test_withdraw_application_is_registered_in_citizen_mcp_server():
     registered_names = {tool.name for tool in mcp._tool_manager.list_tools()}
 
+    assert "request_citizen_otp" in registered_names
+    assert "verify_citizen_otp" in registered_names
     assert "withdraw_my_application" in registered_names
     assert "get_my_application_slip" in registered_names
     assert "create_or_resume_application_draft" in registered_names
@@ -48,6 +50,7 @@ def test_draft_document_tool_requests_actual_proof_file_attachment():
     server_instructions = mcp.instructions.lower()
     assert "review_required" in server_instructions
     assert "masked summary" in server_instructions
+    assert "otp verification is always required" in server_instructions
 
 
 def test_submit_tool_requires_draft_and_both_confirmations():
@@ -61,7 +64,21 @@ def test_submit_tool_requires_draft_and_both_confirmations():
         "draft_ref",
         "declaration_confirmed",
         "summary_confirmed",
+        "session_token",
     }
+    assert "never display or repeat it" in properties["session_token"]["description"]
+
+
+def test_all_citizen_personal_data_tools_require_a_session_token():
+    public_tools = {
+        "pension_scheme_information",
+        "request_citizen_otp",
+        "verify_citizen_otp",
+    }
+
+    for tool in mcp._tool_manager.list_tools():
+        if tool.name not in public_tools:
+            assert "session_token" in tool.parameters["required"]
 
 
 def test_application_slip_tool_returns_downloadable_pdf_attachment(monkeypatch):
@@ -71,10 +88,10 @@ def test_application_slip_tool_returns_downloadable_pdf_attachment(monkeypatch):
     monkeypatch.setattr(
         server,
         "download_application_slip",
-        lambda: (b"%PDF-test", 'attachment; filename="SSP12345678.pdf"'),
+        lambda _token: (b"%PDF-test", 'attachment; filename="SSP12345678.pdf"'),
     )
 
-    result = server.get_my_application_slip()
+    result = server.get_my_application_slip("citizen-session")
 
     assert "SSP12345678.pdf" in result.content[0].text
     attachment = result.content[1]
@@ -84,8 +101,7 @@ def test_application_slip_tool_returns_downloadable_pdf_attachment(monkeypatch):
     assert base64.b64decode(attachment.resource.blob) == b"%PDF-test"
 
 
-def test_withdraw_application_forwards_confirmation_and_token(monkeypatch):
-    monkeypatch.setattr(tools, "_access_token", lambda: "citizen-token")
+def test_withdraw_application_forwards_confirmation_and_session(monkeypatch):
     requests = []
     expected = {"application_id": 42, "status": "WITHDRAWN"}
 
@@ -95,22 +111,27 @@ def test_withdraw_application_forwards_confirmation_and_token(monkeypatch):
 
     monkeypatch.setattr(tools.PortalClient, "request", request)
 
-    result = tools.withdraw_application(42, True)
+    result = tools.withdraw_application(42, True, "citizen-session")
 
     assert result == expected
     assert requests == [
         (
             "POST",
             "/api/agent/citizen/applications/42/withdraw",
-            "citizen-token",
+            "citizen-session",
             None,
             {"confirm": True},
         )
     ]
 
 
-def test_withdraw_application_requires_citizen_authentication(monkeypatch):
-    monkeypatch.setattr(tools, "get_access_token", lambda: None)
-
+def test_withdraw_application_requires_a_verified_citizen_session():
     with pytest.raises(AuthorizationError):
-        tools.withdraw_application(42, True)
+        tools.withdraw_application(42, True, "")
+
+
+def test_citizen_mcp_transport_is_public_but_officer_transport_remains_oauth():
+    from mcp_servers.officer.server import mcp as officer_mcp
+
+    assert mcp.settings.auth is None
+    assert officer_mcp.settings.auth is not None

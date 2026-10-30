@@ -142,12 +142,17 @@ def hash_password(p):
 
 def send_sms(mobile, text):
     try:
-        requests.post(SMS_GATEWAY_URL + "/api/send",
-                      json={"to": mobile, "text": text},
-                      headers={"Authorization": "Bearer " + SMS_GATEWAY_TOKEN},
-                      timeout=5)
-    except Exception as e:
+        response = requests.post(
+            SMS_GATEWAY_URL + "/api/send",
+            json={"to": mobile, "text": text},
+            headers={"Authorization": "Bearer " + SMS_GATEWAY_TOKEN},
+            timeout=5,
+        )
+        response.raise_for_status()
+        return True
+    except requests.RequestException as e:
         app.logger.error("sms gateway error: %s" % e)
+        return False
 
 
 def deadline_remaining():
@@ -532,15 +537,20 @@ def about():
 @app.route("/__gateway/", defaults={"subpath": ""})
 @app.route("/__gateway/<path:subpath>")
 def gateway_proxy(subpath):
-    if not session.get("admin"):
+    admin = bool(session.get("admin"))
+    public_console = not subpath and not admin
+    if not public_console and not admin:
         abort(403)
-    # Convenience proxy to the internal SMS gateway, so the OTP inbox is reachable
-    # by administrators without opening a second port on the host.
+    # The public console is redacted; inbox and send operations remain admin-only.
     try:
-        r = requests.get(SMS_GATEWAY_URL + "/" + subpath,
-                         params=request.args,
-                         headers={"Authorization": "Bearer " + SMS_GATEWAY_TOKEN},
-                         timeout=5)
+        if public_console:
+            r = requests.get(SMS_GATEWAY_URL + "/public", timeout=5)
+        else:
+            gateway_path = "/" + subpath if subpath else "/"
+            r = requests.get(SMS_GATEWAY_URL + gateway_path,
+                             params=request.args,
+                             headers={"Authorization": "Bearer " + SMS_GATEWAY_TOKEN},
+                             timeout=5)
         return (r.content, r.status_code,
                 {"Content-Type": r.headers.get("Content-Type", "text/html")})
     except Exception as e:

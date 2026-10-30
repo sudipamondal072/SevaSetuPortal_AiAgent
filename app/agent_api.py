@@ -1,5 +1,7 @@
 import base64
 import binascii
+import hashlib
+import hmac
 import json
 import os
 import re
@@ -15,7 +17,7 @@ import io
 from werkzeug.utils import secure_filename
 
 import app as portal
-from oauth import verify_token
+from oauth import SESSION, mint_access_token, verify_token
 
 agent_api = Blueprint("agent_api", __name__)
 MAX_DOCUMENT_BYTES = 5 * 1024 * 1024
@@ -32,6 +34,8 @@ DRAFT_FIELDS = (
 )
 _CITIZEN_DRAFT_SCHEMA_READY = False
 _CITIZEN_DRAFT_SCHEMA_LOCK = threading.Lock()
+_CITIZEN_SESSION_SCHEMA_READY = False
+_CITIZEN_SESSION_SCHEMA_LOCK = threading.Lock()
 _LEGACY_BLOCK_CONFIGURATION_WARNED = False
 
 
@@ -325,6 +329,261 @@ def _json_object():
     if not isinstance(data, dict):
         return None, (jsonify(error="A JSON object is required."), 400)
     return data, None
+
+
+def _ensure_citizen_session_schema(cur):
+    global _CITIZEN_SESSION_SCHEMA_READY
+    if _CITIZEN_SESSION_SCHEMA_READY:
+        return
+    with _CITIZEN_SESSION_SCHEMA_LOCK:
+        if _CITIZEN_SESSION_SCHEMA_READY:
+            return
+        cur.execute(
+            """CREATE TABLE IF NOT EXISTS citizen_mcp_otp_challenges (
+                   id SERIAL PRIMARY KEY,
+                   mobile VARCHAR(15) NOT NULL,
+                   code_hash VARCHAR(64) NOT NULL,
+                   created_at TIMESTAMP NOT NULL,
+                   consumed_at TIMESTAMP,
+                   attempts SMALLINT NOT NULL DEFAULT 0
+               )"""
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_citizen_mcp_otp_mobile "
+            "ON citizen_mcp_otp_challenges(mobile, created_at DESC)"
+        )
+        cur.execute(
+            """CREATE TABLE IF NOT EXISTS citizen_mcp_rate_limits (
+                   bucket_key VARCHAR(64) PRIMARY KEY,
+                   window_started_at TIMESTAMP NOT NULL,
+                   request_count INTEGER NOT NULL
+               )"""
+        )
+        cur.execute(
+            "CREATE INDEX IF NOT EXISTS idx_citizen_mcp_rate_limit_window "
+            "ON citizen_mcp_rate_limits(window_started_at)"
+        )
+        connection = getattr(cur, "connection", None)
+        if connection is not None:
+            connection.commit()
+            _CITIZEN_SESSION_SCHEMA_READY = True
+
+
+def _rate_limit_key(namespace, value):
+    return hmac.new(
+        portal.app.secret_key.encode("utf-8"),
+        (namespace + ":" + value).encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def _increment_citizen_rate_limit(cur, key, limit, window_seconds, now):
+    cur.execute(
+        """INSERT INTO citizen_mcp_rate_limits AS current_limit
+               (bucket_key, window_started_at, request_count)
+           VALUES (%s, %s, 1)
+           ON CONFLICT (bucket_key) DO UPDATE SET
+               window_started_at = CASE
+                   WHEN current_limit.window_started_at <=
+                        EXCLUDED.window_started_at - (%s * INTERVAL '1 second')
+                   THEN EXCLUDED.window_started_at
+                   ELSE current_limit.window_started_at
+               END,
+               request_count = CASE
+                   WHEN current_limit.window_started_at <=
+                        EXCLUDED.window_started_at - (%s * INTERVAL '1 second')
+                   THEN 1
+                   ELSE current_limit.request_count + 1
+               END
+           RETURNING request_count""",
+        (key, now, window_seconds, window_seconds),
+    )
+    return cur.fetchone()[0] <= limit
+
+
+def _citizen_otp_rate_limited(cur, mobile, source_ip, action, now):
+    if action == "request":
+        buckets = (
+            ("citizen-otp-request-mobile-15m", mobile, 3, 900),
+            ("citizen-otp-request-mobile-hour", mobile, 10, 3600),
+            ("citizen-otp-request-ip-hour", source_ip, 1000, 3600),
+        )
+    else:
+        buckets = (
+            ("citizen-otp-verify-mobile-15m", mobile, 5, 900),
+            ("citizen-otp-verify-ip-hour", source_ip, 1000, 3600),
+        )
+    return any(
+        not _increment_citizen_rate_limit(
+            cur,
+            _rate_limit_key(namespace, value),
+            limit,
+            window_seconds,
+            now,
+        )
+        for namespace, value, limit, window_seconds in buckets
+    )
+
+
+def _citizen_otp_code_hash(mobile, code):
+    return hmac.new(
+        portal.app.secret_key.encode("utf-8"),
+        (mobile + ":" + code).encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+@agent_api.post("/api/agent/citizen/session/otp/request")
+def request_citizen_session_otp():
+    data, error = _json_object()
+    if error:
+        return error
+    mobile = str(data.get("mobile", "")).strip()
+    if not re.fullmatch(r"\d{10}", mobile):
+        return jsonify(error="Please provide a valid 10-digit mobile number."), 400
+
+    conn = portal.get_db()
+    try:
+        cur = _TimedCursor(conn.cursor())
+        _ensure_citizen_session_schema(cur)
+        now = datetime.now()
+        if _citizen_otp_rate_limited(
+            cur, mobile, request.remote_addr or "unknown", "request", now
+        ):
+            conn.commit()
+            return jsonify(error="OTP request limit reached. Try again later."), 429, {
+                "Retry-After": "900"
+            }
+
+        cur.execute(
+            "DELETE FROM citizen_mcp_otp_challenges "
+            "WHERE created_at < %s - INTERVAL '1 day'",
+            (now,),
+        )
+        cur.execute(
+            "DELETE FROM citizen_mcp_rate_limits "
+            "WHERE window_started_at < %s - INTERVAL '1 day'",
+            (now,),
+        )
+        code = "%06d" % secrets.randbelow(1000000)
+        cur.execute(
+            "UPDATE citizen_mcp_otp_challenges SET consumed_at = %s "
+            "WHERE mobile = %s AND consumed_at IS NULL",
+            (now, mobile),
+        )
+        cur.execute(
+            "INSERT INTO citizen_mcp_otp_challenges "
+            "(mobile, code_hash, created_at) VALUES (%s, %s, %s)",
+            (mobile, _citizen_otp_code_hash(mobile, code), now),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    if not portal.send_sms(
+        mobile, "Your Sewa Setu OTP is %s. Valid for 5 minutes." % code
+    ):
+        conn = portal.get_db()
+        try:
+            cur = _TimedCursor(conn.cursor())
+            cur.execute(
+                "UPDATE citizen_mcp_otp_challenges SET consumed_at = %s "
+                "WHERE mobile = %s AND created_at = %s AND consumed_at IS NULL",
+                (datetime.now(), mobile, now),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        return jsonify(error="The OTP could not be sent. Please try again later."), 502
+    return jsonify(status="otp_sent", expires_in=portal.OTP_VALIDITY_SECONDS)
+
+
+@agent_api.post("/api/agent/citizen/session/otp/verify")
+def verify_citizen_session_otp():
+    data, error = _json_object()
+    if error:
+        return error
+    mobile = str(data.get("mobile", "")).strip()
+    code = str(data.get("otp", "")).strip()
+    if not re.fullmatch(r"\d{10}", mobile) or not re.fullmatch(r"\d{6}", code):
+        return jsonify(error="A valid mobile number and six-digit OTP are required."), 400
+
+    conn = portal.get_db()
+    try:
+        cur = _TimedCursor(conn.cursor())
+        _ensure_citizen_session_schema(cur)
+        now = datetime.now()
+        if _citizen_otp_rate_limited(
+            cur, mobile, request.remote_addr or "unknown", "verify", now
+        ):
+            conn.commit()
+            return jsonify(error="OTP verification limit reached. Try again later."), 429, {
+                "Retry-After": "900"
+            }
+
+        cur.execute(
+            "SELECT id, code_hash, created_at, attempts "
+            "FROM citizen_mcp_otp_challenges "
+            "WHERE mobile = %s AND consumed_at IS NULL "
+            "ORDER BY id DESC LIMIT 1 FOR UPDATE",
+            (mobile,),
+        )
+        challenge = cur.fetchone()
+        if not challenge:
+            conn.commit()
+            return jsonify(error="Invalid or expired OTP."), 401
+
+        challenge_id, expected_hash, created_at, attempts = challenge
+        age_seconds = (now - created_at).total_seconds()
+        if age_seconds < 0 or age_seconds > portal.OTP_VALIDITY_SECONDS:
+            cur.execute(
+                "UPDATE citizen_mcp_otp_challenges SET consumed_at = %s "
+                "WHERE id = %s AND consumed_at IS NULL",
+                (now, challenge_id),
+            )
+            conn.commit()
+            return jsonify(error="Invalid or expired OTP."), 401
+
+        supplied_hash = _citizen_otp_code_hash(mobile, code)
+        if attempts >= 5 or not hmac.compare_digest(expected_hash, supplied_hash):
+            cur.execute(
+                "UPDATE citizen_mcp_otp_challenges "
+                "SET attempts = attempts + 1, "
+                "consumed_at = CASE WHEN attempts + 1 >= 5 THEN %s ELSE consumed_at END "
+                "WHERE id = %s AND consumed_at IS NULL",
+                (now, challenge_id),
+            )
+            conn.commit()
+            return jsonify(error="Invalid or expired OTP."), 401
+
+        cur.execute(
+            "UPDATE citizen_mcp_otp_challenges SET consumed_at = %s "
+            "WHERE id = %s AND consumed_at IS NULL",
+            (now, challenge_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    session_ends = now + timedelta(seconds=SESSION["citizen"]["session"])
+    session_token, claims = mint_access_token(
+        "citizen:" + mobile,
+        "citizen",
+        "citizen",
+        os.getenv("CITIZEN_RESOURCE_URL", "http://localhost:8001/mcp").rstrip("/"),
+        "citizen-mcp-otp",
+        ttl=SESSION["citizen"]["session"],
+        session_ends=session_ends,
+    )
+    response = jsonify({
+        "session_token": session_token,
+        "token_type": "Bearer",
+        "expires_in": claims["exp"] - int(time.time()),
+        "session_expires_in": SESSION["citizen"]["session"],
+    })
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    return response
 
 
 def _format_date(value):

@@ -4,7 +4,6 @@ import logging
 import time
 from typing import Annotated
 
-from mcp.server.auth.settings import AuthSettings
 from mcp.server.fastmcp import FastMCP
 from mcp.types import BlobResourceContents, CallToolResult, EmbeddedResource, TextContent
 from pydantic import Field
@@ -15,24 +14,34 @@ from mcp_servers.citizen.tools import (
     get_application_status as check_application_status,
     get_application_slip as download_application_slip,
     get_scheme_information,
+    request_citizen_otp as send_citizen_otp,
     read_application_draft as read_citizen_draft,
     save_application_draft as save_citizen_draft,
     submit_pension_application as create_pension_application,
     validate_age_proof as validate_citizen_age_proof,
+    verify_citizen_otp as verify_citizen_session_otp,
     withdraw_application as withdraw_citizen_application,
 )
-from mcp_servers.common.auth import PortalTokenVerifier
-from mcp_servers.common.config import (
-    CITIZEN_MCP_PORT,
-    CITIZEN_RESOURCE_URL,
-    PORTAL_ISSUER_URL,
-)
+from mcp_servers.common.config import CITIZEN_MCP_PORT
+
+CitizenSessionToken = Annotated[
+    str,
+    Field(description=(
+        "Private, short-lived token returned by verify_citizen_otp. Pass it "
+        "only to protected citizen tools; never display or repeat it."
+    )),
+]
 
 mcp = FastMCP(
     "Sewa Setu Citizen",
     instructions=(
         "Help a citizen check or prepare their own Old Age Pension application. "
-            "When they ask to apply, call create_or_resume_application_draft once as the "
+            "Citizen MCP transport does not require OAuth. First call "
+            "request_citizen_otp with the citizen's mobile number, then "
+            "verify_citizen_otp with the six-digit code. Keep the returned "
+            "session_token private and pass it only to that citizen's protected "
+            "tools; never repeat it in chat. OTP verification is always required. "
+                "When they ask to apply, call create_or_resume_application_draft once as the "
             "preflight; the backend checks for a blocking application and creates or resumes "
             "the authenticated citizen's draft in the same request. If it reports "
             "application_exists, tell the citizen the returned reference and status without "
@@ -69,13 +78,6 @@ mcp = FastMCP(
     host="0.0.0.0",
     port=CITIZEN_MCP_PORT,
     streamable_http_path="/mcp",
-    auth=AuthSettings(
-        issuer_url=PORTAL_ISSUER_URL,
-        resource_server_url=CITIZEN_RESOURCE_URL,
-        validate_token_resource=False,
-        required_scopes=["citizen"],
-    ),
-    token_verifier=PortalTokenVerifier(CITIZEN_RESOURCE_URL, "citizen"),
     max_request_body_size=8 * 1024 * 1024,
 )
 
@@ -107,14 +109,29 @@ def pension_scheme_information() -> dict:
 
 @mcp.tool()
 @_timed_tool
-def check_my_application() -> dict:
+def request_citizen_otp(mobile: str) -> dict:
+    """Request a rate-limited one-time code for the citizen's mobile number."""
+    return send_citizen_otp(mobile)
+
+
+@mcp.tool()
+@_timed_tool
+def verify_citizen_otp(mobile: str, otp: str) -> dict:
+    """Verify the citizen's OTP and return a private, short-lived session token."""
+    return verify_citizen_session_otp(mobile, otp)
+
+
+@mcp.tool()
+@_timed_tool
+def check_my_application(session_token: CitizenSessionToken) -> dict:
     """Check the authenticated citizen's application or saved draft."""
-    return check_application_status()
+    return check_application_status(session_token)
 
 
 @mcp.tool()
 @_timed_tool
 def create_or_resume_application_draft(
+    session_token: CitizenSessionToken,
     applicant_name: str = "",
     date_of_birth: str = "",
     village: str = "",
@@ -141,7 +158,7 @@ def create_or_resume_application_draft(
         "marital_status": marital_status,
         "husband_name": husband_name,
     }
-    return create_citizen_draft(**{
+    return create_citizen_draft(session_token, **{
         key: value for key, value in details.items() if value
     })
 
@@ -150,6 +167,7 @@ def create_or_resume_application_draft(
 @_timed_tool
 def save_application_draft(
     draft_ref: str,
+    session_token: CitizenSessionToken,
     applicant_name: str = "",
     date_of_birth: str = "",
     village: str = "",
@@ -174,6 +192,7 @@ def save_application_draft(
     }
     return save_citizen_draft(
         draft_ref,
+        session_token,
         **{key: value for key, value in details.items() if value}
     )
 
@@ -191,30 +210,37 @@ def attach_age_proof(
             "or ask the citizen to type or paste base64."
         )),
     ],
+    session_token: CitizenSessionToken,
 ) -> dict:
     """Attach an actual age-proof file to this authenticated citizen's saved draft."""
-    return attach_citizen_age_proof(draft_ref, filename, file_base64)
+    return attach_citizen_age_proof(
+        draft_ref, filename, file_base64, session_token
+    )
 
 
 @mcp.tool()
 @_timed_tool
-def validate_age_proof(draft_ref: str) -> dict:
+def validate_age_proof(
+    draft_ref: str, session_token: CitizenSessionToken
+) -> dict:
     """Check stored file readability and report officer-review status."""
-    return validate_citizen_age_proof(draft_ref)
+    return validate_citizen_age_proof(draft_ref, session_token)
 
 
 @mcp.tool()
 @_timed_tool
-def get_application_draft(draft_ref: str) -> dict:
+def get_application_draft(
+    draft_ref: str, session_token: CitizenSessionToken
+) -> dict:
     """Read the citizen's saved draft and masked summary before confirmation."""
-    return read_citizen_draft(draft_ref)
+    return read_citizen_draft(draft_ref, session_token)
 
 
 @mcp.tool()
 @_timed_tool
-def get_my_application_slip() -> CallToolResult:
+def get_my_application_slip(session_token: CitizenSessionToken) -> CallToolResult:
     """Get the latest application acknowledgment as a downloadable PDF attachment."""
-    pdf_bytes, disposition = download_application_slip()
+    pdf_bytes, disposition = download_application_slip(session_token)
     filename = "application-slip.pdf"
     marker = 'filename="'
     if marker in disposition:
@@ -239,7 +265,9 @@ def get_my_application_slip() -> CallToolResult:
 
 @mcp.tool()
 @_timed_tool
-def withdraw_my_application(application_id: int, confirm: bool) -> dict:
+def withdraw_my_application(
+    application_id: int, confirm: bool, session_token: CitizenSessionToken
+) -> dict:
     """Withdraw your own pending application after you explicitly confirm.
 
     Withdrawal is final for this application. Only use confirm=True after the
@@ -248,6 +276,7 @@ def withdraw_my_application(application_id: int, confirm: bool) -> dict:
     return withdraw_citizen_application(
         application_id=application_id,
         confirm=confirm,
+        session_token=session_token,
     )
 
 
@@ -257,10 +286,12 @@ def submit_pension_application(
     draft_ref: str,
     declaration_confirmed: bool,
     summary_confirmed: bool,
+    session_token: CitizenSessionToken,
 ) -> dict:
     """Submit a validated draft only after the citizen confirms its masked summary."""
     return create_pension_application(
         draft_ref=draft_ref,
+        session_token=session_token,
         declaration_confirmed=declaration_confirmed,
         summary_confirmed=summary_confirmed,
     )

@@ -88,6 +88,25 @@ CREATE TABLE IF NOT EXISTS citizen_draft_reviews (
     reviewed_at TIMESTAMP NOT NULL
 );
 
+-- OTP challenges and rate limits for non-OAuth Citizen MCP sign-in.
+CREATE TABLE IF NOT EXISTS citizen_mcp_otp_challenges (
+    id          SERIAL PRIMARY KEY,
+    mobile      VARCHAR(15) NOT NULL,
+    code_hash   VARCHAR(64) NOT NULL,
+    created_at  TIMESTAMP NOT NULL,
+    consumed_at TIMESTAMP,
+    attempts    SMALLINT NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_citizen_mcp_otp_mobile
+    ON citizen_mcp_otp_challenges(mobile, created_at DESC);
+CREATE TABLE IF NOT EXISTS citizen_mcp_rate_limits (
+    bucket_key        VARCHAR(64) PRIMARY KEY,
+    window_started_at TIMESTAMP NOT NULL,
+    request_count     INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_citizen_mcp_rate_limit_window
+    ON citizen_mcp_rate_limits(window_started_at);
+
 -- Active officer flags pause statutory deemed approval until a decision is made.
 CREATE TABLE IF NOT EXISTS application_flags (
     application_id INTEGER PRIMARY KEY REFERENCES applications(id),
