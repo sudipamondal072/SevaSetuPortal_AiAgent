@@ -61,7 +61,7 @@ services:
       - "8025"
     environment:
       SMS_GATEWAY_TOKEN: ${SMS_GATEWAY_TOKEN:?Set SMS_GATEWAY_TOKEN in .env (at least 32 characters)}
-
+       PUBLIC_DEMO_CONSOLE: "true"
   citizen-mcp:
     build:
       context: .
